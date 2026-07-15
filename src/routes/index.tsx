@@ -485,16 +485,16 @@ function Header({
           <div className="w-5 h-0.5 bg-foreground" />
         </button>
 
-        <div className="flex-1 min-w-0 flex flex-col items-start text-left">
-          <div className="flex items-center gap-3">
-            <Logo size={44} />
+        <div className="flex-1 min-w-0 flex items-center gap-3">
+          <Logo size={44} />
+          <div className="flex flex-col items-start text-left">
             <h1 className="font-display text-xl md:text-2xl font-bold tracking-tight leading-none">
               CARNET DE STAGE
             </h1>
+            <p className="font-ruqaa text-primary text-base md:text-lg leading-none mt-1">
+              العلمُ صيدٌ وكتابتُه قيدٌ
+            </p>
           </div>
-          <p className="font-ruqaa text-primary text-lg md:text-xl mt-2 leading-none">
-            العلمُ صيدٌ وكتابتُه قيدٌ
-          </p>
         </div>
 
         <div className="flex flex-col items-end gap-2 shrink-0">
