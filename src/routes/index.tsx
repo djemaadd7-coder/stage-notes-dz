@@ -126,10 +126,17 @@ function CarnetApp() {
 
   useEffect(() => {
     setHydrated(true);
-    setEmail(localStorage.getItem(LS.user));
     setHospital(localStorage.getItem(LS.hospital) || HOSPITALS[0]);
     setCases(loadCases());
     setReminders(localStorage.getItem(LS.reminders) === "1");
+
+    supabase.auth.getSession().then(({ data }) => {
+      setEmail(data.session?.user?.email ?? null);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setEmail(session?.user?.email ?? null);
+    });
+    return () => sub.subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
