@@ -17,6 +17,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { Logo } from "@/components/Logo";
 
 export const Route = createFileRoute("/")({
   component: CarnetApp,
@@ -203,6 +204,10 @@ function CarnetApp() {
             onLogout={() => {
               localStorage.removeItem(LS.user);
               setEmail(null);
+              setTab("home");
+              setMobileNav(false);
+              setOpenSpecialty(null);
+              toast.success("Déconnexion réussie — à bientôt 👋");
             }}
           />
         </aside>
@@ -277,23 +282,19 @@ function LoginScreen({ onLogin }: { onLogin: (email: string) => void }) {
           entering ? "scale-95 opacity-0" : "scale-100 opacity-100"
         }`}
       >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-primary text-primary-foreground grid place-items-center text-2xl shadow-lg">
-            🩺
+        <div className="flex flex-col items-center text-center mb-6">
+          <Logo size={64} />
+          <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mt-4">
+            Journal Clinique
           </div>
-          <div>
-            <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-              Journal Clinique
-            </div>
-            <div className="font-display text-2xl font-bold leading-none">
-              Carnet de Stage
-            </div>
-          </div>
+          <h1 className="font-display text-3xl font-bold leading-tight mt-1">
+            CARNET DE STAGE
+          </h1>
+          <p className="font-ruqaa text-3xl text-primary mt-4 leading-relaxed">
+            العلمُ صيدٌ وكتابتُه قيدٌ
+          </p>
         </div>
 
-        <p className="font-arabic text-2xl text-center text-primary my-6 leading-relaxed">
-          العلمُ صيدٌ وكتابتُه قيدٌ 📝
-        </p>
 
         <form
           onSubmit={(e) => {
@@ -377,9 +378,7 @@ function SidebarContent({
   return (
     <div className="h-full flex flex-col p-5">
       <div className="flex items-center gap-3 mb-8">
-        <div className="w-11 h-11 rounded-2xl bg-primary text-primary-foreground grid place-items-center text-xl shadow-lg">
-          🩺
-        </div>
+        <Logo size={44} />
         <div>
           <div className="font-display text-lg font-bold leading-none">
             Carnet de Stage
@@ -442,10 +441,15 @@ function SidebarContent({
       </div>
 
       <div className="mt-auto pt-6 border-t border-border">
-        <div className="text-xs text-muted-foreground mb-2 truncate">{email}</div>
+        <div className="flex items-center gap-2 mb-3 px-1">
+          <div className="w-8 h-8 rounded-full bg-secondary grid place-items-center text-sm font-semibold text-foreground/80 shrink-0">
+            {email.charAt(0).toUpperCase()}
+          </div>
+          <div className="text-xs text-muted-foreground truncate">{email}</div>
+        </div>
         <button
           onClick={onLogout}
-          className="flex items-center gap-2 text-sm text-foreground/70 hover:text-foreground transition"
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground font-medium text-sm transition shadow-sm"
         >
           <LogOut className="w-4 h-4" /> Se déconnecter
         </button>
@@ -470,9 +474,9 @@ function Header({
   const [open, setOpen] = useState(false);
   return (
     <header className="sticky top-0 z-20 backdrop-blur-md bg-background/80 border-b border-border">
-      <div className="max-w-6xl mx-auto px-5 md:px-8 py-4 flex items-center gap-4">
+      <div className="max-w-6xl mx-auto px-5 md:px-8 py-4 flex items-start gap-4">
         <button
-          className="lg:hidden p-2 -ml-2 rounded-lg hover:bg-secondary"
+          className="lg:hidden p-2 -ml-2 rounded-lg hover:bg-secondary mt-2"
           onClick={onOpenNav}
           aria-label="Menu"
         >
@@ -481,52 +485,57 @@ function Header({
           <div className="w-5 h-0.5 bg-foreground" />
         </button>
 
-        <div className="flex-1 min-w-0">
-          <h1 className="font-display text-xl md:text-2xl font-bold tracking-tight leading-none">
-            CARNET DE STAGE
-          </h1>
-          <p className="font-arabic text-primary/90 text-base md:text-lg mt-1 leading-none">
-            العلمُ صيدٌ وكتابتُه قيدٌ 📝
+        <div className="flex-1 min-w-0 flex flex-col items-center text-center">
+          <div className="flex items-center gap-3">
+            <Logo size={48} />
+            <h1 className="font-display text-xl md:text-3xl font-bold tracking-tight leading-none">
+              CARNET DE STAGE
+            </h1>
+          </div>
+          <p className="font-ruqaa text-primary text-xl md:text-2xl mt-3 leading-none">
+            العلمُ صيدٌ وكتابتُه قيدٌ
           </p>
         </div>
 
-        <div className="relative">
-          <button
-            onClick={() => setOpen((v) => !v)}
-            className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl bg-card border border-border hover:bg-secondary transition text-sm"
-          >
-            <span>🏥</span>
-            <span className="hidden sm:inline max-w-[180px] truncate">{hospital}</span>
-            <span className="sm:hidden">CHU</span>
-            <ChevronDown className="w-4 h-4 text-muted-foreground" />
-          </button>
-          {open && (
-            <>
-              <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-              <div className="absolute right-0 mt-2 w-72 max-h-96 overflow-y-auto rounded-xl border border-border bg-popover shadow-2xl z-40 p-1">
-                {HOSPITALS.map((h) => (
-                  <button
-                    key={h}
-                    onClick={() => {
-                      setHospital(h);
-                      setOpen(false);
-                    }}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-secondary transition ${
-                      hospital === h ? "bg-secondary font-medium" : ""
-                    }`}
-                  >
-                    🏥 {h}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          <div className="relative">
+            <button
+              onClick={() => setOpen((v) => !v)}
+              className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl bg-card border border-border hover:bg-secondary transition text-sm"
+            >
+              <span>🏥</span>
+              <span className="hidden sm:inline max-w-[180px] truncate">{hospital}</span>
+              <span className="sm:hidden">CHU</span>
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            </button>
+            {open && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+                <div className="absolute right-0 mt-2 w-72 max-h-96 overflow-y-auto rounded-xl border border-border bg-popover shadow-2xl z-40 p-1">
+                  {HOSPITALS.map((h) => (
+                    <button
+                      key={h}
+                      onClick={() => {
+                        setHospital(h);
+                        setOpen(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-secondary transition ${
+                        hospital === h ? "bg-secondary font-medium" : ""
+                      }`}
+                    >
+                      🏥 {h}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
 
-        <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl bg-secondary/60 text-sm">
-          <span className="text-lg">📚</span>
-          <span className="font-semibold">{total}</span>
-          <span className="text-muted-foreground">cas</span>
+          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-secondary/60 text-sm">
+            <span className="text-base">📚</span>
+            <span className="font-semibold">{total}</span>
+            <span className="text-muted-foreground">cas</span>
+          </div>
         </div>
       </div>
     </header>
