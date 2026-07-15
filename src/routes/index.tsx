@@ -374,9 +374,7 @@ function SidebarContent({
   return (
     <div className="h-full flex flex-col p-5">
       <div className="flex items-center gap-3 mb-8">
-        <div className="w-11 h-11 rounded-2xl bg-primary text-primary-foreground grid place-items-center text-xl shadow-lg">
-          🩺
-        </div>
+        <Logo size={44} />
         <div>
           <div className="font-display text-lg font-bold leading-none">
             Carnet de Stage
