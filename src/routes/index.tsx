@@ -467,9 +467,9 @@ function Header({
   const [open, setOpen] = useState(false);
   return (
     <header className="sticky top-0 z-20 backdrop-blur-md bg-background/80 border-b border-border">
-      <div className="max-w-6xl mx-auto px-5 md:px-8 py-4 flex items-center gap-4">
+      <div className="max-w-6xl mx-auto px-5 md:px-8 py-4 flex items-start gap-4">
         <button
-          className="lg:hidden p-2 -ml-2 rounded-lg hover:bg-secondary"
+          className="lg:hidden p-2 -ml-2 rounded-lg hover:bg-secondary mt-2"
           onClick={onOpenNav}
           aria-label="Menu"
         >
@@ -478,52 +478,57 @@ function Header({
           <div className="w-5 h-0.5 bg-foreground" />
         </button>
 
-        <div className="flex-1 min-w-0">
-          <h1 className="font-display text-xl md:text-2xl font-bold tracking-tight leading-none">
-            CARNET DE STAGE
-          </h1>
-          <p className="font-arabic text-primary/90 text-base md:text-lg mt-1 leading-none">
-            العلمُ صيدٌ وكتابتُه قيدٌ 📝
+        <div className="flex-1 min-w-0 flex flex-col items-center text-center">
+          <div className="flex items-center gap-3">
+            <Logo size={48} />
+            <h1 className="font-display text-xl md:text-3xl font-bold tracking-tight leading-none">
+              CARNET DE STAGE
+            </h1>
+          </div>
+          <p className="font-ruqaa text-primary text-xl md:text-2xl mt-3 leading-none">
+            العلمُ صيدٌ وكتابتُه قيدٌ
           </p>
         </div>
 
-        <div className="relative">
-          <button
-            onClick={() => setOpen((v) => !v)}
-            className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl bg-card border border-border hover:bg-secondary transition text-sm"
-          >
-            <span>🏥</span>
-            <span className="hidden sm:inline max-w-[180px] truncate">{hospital}</span>
-            <span className="sm:hidden">CHU</span>
-            <ChevronDown className="w-4 h-4 text-muted-foreground" />
-          </button>
-          {open && (
-            <>
-              <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-              <div className="absolute right-0 mt-2 w-72 max-h-96 overflow-y-auto rounded-xl border border-border bg-popover shadow-2xl z-40 p-1">
-                {HOSPITALS.map((h) => (
-                  <button
-                    key={h}
-                    onClick={() => {
-                      setHospital(h);
-                      setOpen(false);
-                    }}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-secondary transition ${
-                      hospital === h ? "bg-secondary font-medium" : ""
-                    }`}
-                  >
-                    🏥 {h}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          <div className="relative">
+            <button
+              onClick={() => setOpen((v) => !v)}
+              className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl bg-card border border-border hover:bg-secondary transition text-sm"
+            >
+              <span>🏥</span>
+              <span className="hidden sm:inline max-w-[180px] truncate">{hospital}</span>
+              <span className="sm:hidden">CHU</span>
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            </button>
+            {open && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+                <div className="absolute right-0 mt-2 w-72 max-h-96 overflow-y-auto rounded-xl border border-border bg-popover shadow-2xl z-40 p-1">
+                  {HOSPITALS.map((h) => (
+                    <button
+                      key={h}
+                      onClick={() => {
+                        setHospital(h);
+                        setOpen(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-secondary transition ${
+                        hospital === h ? "bg-secondary font-medium" : ""
+                      }`}
+                    >
+                      🏥 {h}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
 
-        <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl bg-secondary/60 text-sm">
-          <span className="text-lg">📚</span>
-          <span className="font-semibold">{total}</span>
-          <span className="text-muted-foreground">cas</span>
+          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-secondary/60 text-sm">
+            <span className="text-base">📚</span>
+            <span className="font-semibold">{total}</span>
+            <span className="text-muted-foreground">cas</span>
+          </div>
         </div>
       </div>
     </header>
