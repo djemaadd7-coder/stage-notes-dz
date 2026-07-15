@@ -10,6 +10,7 @@ import {
   ChevronDown,
   Info,
   LogOut,
+  Lock,
   Mail,
   Plus,
   Search,
