@@ -1,0 +1,13 @@
+{
+  "name": "Carnet de Stage",
+  "short_name": "Carnet",
+  "description": "Journal clinique interactif pour étudiants en médecine algériens",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fafaf7",
+  "theme_color": "#0f766e",
+  "icons": [
+    { "src": "/favicon.ico", "sizes": "64x64", "type": "image/x-icon" }
+  ]
+}
