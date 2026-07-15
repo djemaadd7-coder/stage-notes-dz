@@ -278,23 +278,19 @@ function LoginScreen({ onLogin }: { onLogin: (email: string) => void }) {
           entering ? "scale-95 opacity-0" : "scale-100 opacity-100"
         }`}
       >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-primary text-primary-foreground grid place-items-center text-2xl shadow-lg">
-            🩺
+        <div className="flex flex-col items-center text-center mb-6">
+          <Logo size={64} />
+          <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mt-4">
+            Journal Clinique
           </div>
-          <div>
-            <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-              Journal Clinique
-            </div>
-            <div className="font-display text-2xl font-bold leading-none">
-              Carnet de Stage
-            </div>
-          </div>
+          <h1 className="font-display text-3xl font-bold leading-tight mt-1">
+            CARNET DE STAGE
+          </h1>
+          <p className="font-ruqaa text-3xl text-primary mt-4 leading-relaxed">
+            العلمُ صيدٌ وكتابتُه قيدٌ
+          </p>
         </div>
 
-        <p className="font-arabic text-2xl text-center text-primary my-6 leading-relaxed">
-          العلمُ صيدٌ وكتابتُه قيدٌ 📝
-        </p>
 
         <form
           onSubmit={(e) => {
