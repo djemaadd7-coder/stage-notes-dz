@@ -204,6 +204,10 @@ function CarnetApp() {
             onLogout={() => {
               localStorage.removeItem(LS.user);
               setEmail(null);
+              setTab("home");
+              setMobileNav(false);
+              setOpenSpecialty(null);
+              toast.success("Déconnexion réussie — à bientôt 👋");
             }}
           />
         </aside>
