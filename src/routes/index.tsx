@@ -1,24 +1,1146 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Toaster, toast } from "sonner";
+import {
+  Activity,
+  BarChart3,
+  Bell,
+  Bot,
+  Camera,
+  ChevronDown,
+  Info,
+  LogOut,
+  Mail,
+  Plus,
+  Search,
+  Sparkles,
+  Trash2,
+  X,
+} from "lucide-react";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
-  component: Index,
+  component: CarnetApp,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
-  return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
+/* ---------------- Data ---------------- */
+
+const HOSPITALS = [
+  "CHU Mustapha Pacha",
+  "CHU Bab El Oued",
+  "CHU Beni Messous",
+  "CHU Douera",
+  "CHU Blida",
+  "CHU Oran",
+  "CHU Constantine",
+  "CHU Annaba",
+  "CHU Sétif",
+  "CHU Batna",
+  "CHU Tizi Ouzou",
+  "CHU Tlemcen",
+  "CHU Sidi Bel Abbès",
+  "CHU Béjaïa",
+  "CHU Mostaganem",
+  "CHU Biskra",
+  "CHU Ouargla",
+  "CHU Béchar",
+];
+
+type Specialty = {
+  id: string;
+  fr: string;
+  ar: string;
+  emoji: string;
+  hue: number; // for card gradient
+  suggestions: string[];
+};
+
+const SPECIALTIES: Specialty[] = [
+  { id: "urgences", fr: "Urgences", ar: "الاستعجالات", emoji: "🚨", hue: 5, suggestions: ["Appendicite aiguë", "Colique néphrétique", "Œdème aigu du poumon"] },
+  { id: "cardio", fr: "Cardiologie", ar: "أمراض القلب", emoji: "❤️", hue: 355, suggestions: ["HTA", "Infarctus du myocarde", "Insuffisance cardiaque"] },
+  { id: "pneumo", fr: "Pneumologie", ar: "أمراض الصدر", emoji: "🫁", hue: 200, suggestions: ["Pneumopathie", "Asthme", "Tuberculose pulmonaire"] },
+  { id: "pediatrie", fr: "Pédiatrie", ar: "طب الأطفال", emoji: "🧒", hue: 30, suggestions: ["Bronchiolite", "Gastro-entérite aiguë", "Diarrhée aiguë"] },
+  { id: "gyneco", fr: "Gynécologie-Obstétrique", ar: "أمراض النساء والتوليد", emoji: "🤰", hue: 330, suggestions: ["Grossesse normale", "Pré-éclampsie", "Fibrome utérin"] },
+  { id: "chir", fr: "Chirurgie Générale", ar: "الجراحة العامة", emoji: "🔪", hue: 220, suggestions: ["Cholécystite", "Hernie inguinale", "Occlusion intestinale"] },
+  { id: "neuro", fr: "Neurologie", ar: "أمراض الأعصاب", emoji: "🧠", hue: 280, suggestions: ["AVC ischémique", "Épilepsie", "Migraine"] },
+  { id: "nephro", fr: "Néphrologie", ar: "أمراض الكلى", emoji: "🩺", hue: 190, suggestions: ["IRC", "Syndrome néphrotique", "Pyélonéphrite"] },
+  { id: "gastro", fr: "Gastro-entérologie", ar: "أمراض الجهاز الهضمي", emoji: "🍽️", hue: 40, suggestions: ["Ulcère gastrique", "Hépatite virale", "RGO"] },
+  { id: "endocrino", fr: "Endocrinologie", ar: "أمراض الغدد", emoji: "🧬", hue: 160, suggestions: ["Diabète type 2", "Hypothyroïdie", "Acidocétose diabétique"] },
+  { id: "rhumato", fr: "Rhumatologie", ar: "أمراض الروماتيزم", emoji: "🦴", hue: 25, suggestions: ["Polyarthrite rhumatoïde", "Arthrose", "Goutte"] },
+  { id: "dermato", fr: "Dermatologie", ar: "أمراض الجلد", emoji: "🧴", hue: 340, suggestions: ["Eczéma", "Psoriasis", "Acné"] },
+  { id: "ophtalmo", fr: "Ophtalmologie", ar: "طب العيون", emoji: "👁️", hue: 210, suggestions: ["Cataracte", "Glaucome", "Conjonctivite"] },
+  { id: "orl", fr: "ORL", ar: "الأنف والأذن والحنجرة", emoji: "👂", hue: 260, suggestions: ["Otite moyenne", "Sinusite", "Angine"] },
+  { id: "psy", fr: "Psychiatrie", ar: "الطب النفسي", emoji: "🧘", hue: 300, suggestions: ["Dépression", "Trouble anxieux", "Schizophrénie"] },
+  { id: "hemato", fr: "Hématologie", ar: "أمراض الدم", emoji: "🩸", hue: 0, suggestions: ["Anémie ferriprive", "Leucémie aiguë", "Lymphome"] },
+  { id: "onco", fr: "Oncologie", ar: "علم الأورام", emoji: "🎗️", hue: 320, suggestions: ["Cancer du sein", "Cancer colorectal", "Cancer du poumon"] },
+  { id: "infectio", fr: "Infectiologie", ar: "الأمراض المعدية", emoji: "🦠", hue: 130, suggestions: ["Paludisme", "COVID-19", "Fièvre typhoïde"] },
+  { id: "radio", fr: "Radiologie", ar: "الأشعة", emoji: "🩻", hue: 240, suggestions: ["Fracture", "Pneumopathie radiologique", "Lithiase rénale"] },
+  { id: "anesthesie", fr: "Anesthésie-Réanimation", ar: "التخدير والإنعاش", emoji: "💉", hue: 195, suggestions: ["Choc septique", "Détresse respiratoire aiguë", "Sepsis"] },
+  { id: "ortho", fr: "Orthopédie", ar: "جراحة العظام", emoji: "🦵", hue: 15, suggestions: ["Fracture du col fémoral", "Entorse de la cheville", "Lombalgie"] },
+  { id: "uro", fr: "Urologie", ar: "أمراض المسالك البولية", emoji: "🚻", hue: 175, suggestions: ["Hypertrophie prostatique", "Lithiase urinaire", "Infection urinaire"] },
+];
+
+type CaseEntry = {
+  id: string;
+  specialty: string;
+  diagnosis: string;
+  treatment: string;
+  notes: string;
+  photo?: string;
+  hospital: string;
+  date: string;
+};
+
+/* ---------------- Storage ---------------- */
+
+const LS = {
+  user: "cds:user",
+  hospital: "cds:hospital",
+  cases: "cds:cases",
+  reminders: "cds:reminders",
+};
+
+function loadCases(): CaseEntry[] {
+  if (typeof window === "undefined") return [];
+  try {
+    return JSON.parse(localStorage.getItem(LS.cases) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+/* ---------------- Component ---------------- */
+
+type Tab = "home" | "stats" | "ai" | "notif" | "help";
+
+function CarnetApp() {
+  const [hydrated, setHydrated] = useState(false);
+  const [email, setEmail] = useState<string | null>(null);
+  const [hospital, setHospital] = useState<string>(HOSPITALS[0]);
+  const [cases, setCases] = useState<CaseEntry[]>([]);
+  const [tab, setTab] = useState<Tab>("home");
+  const [openSpecialty, setOpenSpecialty] = useState<Specialty | null>(null);
+  const [reminders, setReminders] = useState(false);
+  const [search, setSearch] = useState("");
+  const [mobileNav, setMobileNav] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+    setEmail(localStorage.getItem(LS.user));
+    setHospital(localStorage.getItem(LS.hospital) || HOSPITALS[0]);
+    setCases(loadCases());
+    setReminders(localStorage.getItem(LS.reminders) === "1");
+  }, []);
+
+  useEffect(() => {
+    if (hydrated) localStorage.setItem(LS.cases, JSON.stringify(cases));
+  }, [cases, hydrated]);
+  useEffect(() => {
+    if (hydrated) localStorage.setItem(LS.hospital, hospital);
+  }, [hospital, hydrated]);
+
+  const counts = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const c of cases) m[c.specialty] = (m[c.specialty] || 0) + 1;
+    return m;
+  }, [cases]);
+
+  const total = cases.length;
+
+  if (!hydrated) return null;
+
+  if (!email) {
+    return (
+      <LoginScreen
+        onLogin={(e) => {
+          localStorage.setItem(LS.user, e);
+          setEmail(e);
+          toast.success("Bienvenue dans votre Carnet de Stage ✨");
+        }}
       />
+    );
+  }
+
+  const addCase = (c: CaseEntry) => {
+    setCases((prev) => [c, ...prev]);
+    toast.success(`✅ Cas enregistré — ${c.diagnosis}`, {
+      description: `${SPECIALTIES.find((s) => s.id === c.specialty)?.fr} · ${hospital}`,
+    });
+  };
+
+  const deleteCase = (id: string) => {
+    setCases((prev) => prev.filter((c) => c.id !== id));
+    toast("🗑️ Cas supprimé");
+  };
+
+  const filtered = search
+    ? SPECIALTIES.filter(
+        (s) =>
+          s.fr.toLowerCase().includes(search.toLowerCase()) ||
+          s.ar.includes(search),
+      )
+    : SPECIALTIES;
+
+  return (
+    <div className="min-h-screen bg-background text-foreground font-sans">
+      <Toaster position="top-center" richColors />
+
+      <div className="flex min-h-screen">
+        {/* Sidebar */}
+        <aside
+          className={`fixed inset-y-0 left-0 z-40 w-72 border-r border-border bg-card/80 backdrop-blur-md transition-transform lg:static lg:translate-x-0 ${
+            mobileNav ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
+          <SidebarContent
+            tab={tab}
+            setTab={(t) => {
+              setTab(t);
+              setMobileNav(false);
+            }}
+            cases={cases}
+            counts={counts}
+            email={email}
+            onLogout={() => {
+              localStorage.removeItem(LS.user);
+              setEmail(null);
+            }}
+          />
+        </aside>
+        {mobileNav && (
+          <div
+            className="fixed inset-0 z-30 bg-black/40 lg:hidden"
+            onClick={() => setMobileNav(false)}
+          />
+        )}
+
+        {/* Main */}
+        <main className="flex-1 min-w-0">
+          <Header
+            hospital={hospital}
+            setHospital={setHospital}
+            onOpenNav={() => setMobileNav(true)}
+            total={total}
+          />
+
+          <div className="max-w-6xl mx-auto px-5 md:px-8 py-8">
+            {tab === "home" && (
+              <HomeTab
+                search={search}
+                setSearch={setSearch}
+                specialties={filtered}
+                counts={counts}
+                onOpen={(s) => setOpenSpecialty(s)}
+              />
+            )}
+            {tab === "stats" && <StatsTab counts={counts} total={total} cases={cases} onDelete={deleteCase} />}
+            {tab === "ai" && <AITab />}
+            {tab === "notif" && (
+              <NotifTab reminders={reminders} setReminders={setReminders} />
+            )}
+            {tab === "help" && <HelpTab />}
+          </div>
+        </main>
+      </div>
+
+      {openSpecialty && (
+        <CaseModal
+          specialty={openSpecialty}
+          hospital={hospital}
+          onClose={() => setOpenSpecialty(null)}
+          onSave={(c) => {
+            addCase(c);
+            setOpenSpecialty(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Login ---------------- */
+
+function LoginScreen({ onLogin }: { onLogin: (email: string) => void }) {
+  const [value, setValue] = useState("");
+  const [entering, setEntering] = useState(false);
+
+  return (
+    <div className="min-h-screen relative flex items-center justify-center px-5 overflow-hidden bg-background">
+      <div
+        className="absolute inset-0 opacity-60"
+        style={{
+          background:
+            "radial-gradient(1200px 500px at 20% 10%, oklch(0.9 0.08 190 / 0.5), transparent), radial-gradient(900px 500px at 80% 90%, oklch(0.9 0.08 40 / 0.4), transparent)",
+        }}
+      />
+      <div
+        className={`relative w-full max-w-md rounded-3xl border border-border bg-card/90 backdrop-blur p-8 md:p-10 shadow-2xl transition ${
+          entering ? "scale-95 opacity-0" : "scale-100 opacity-100"
+        }`}
+      >
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-12 h-12 rounded-2xl bg-primary text-primary-foreground grid place-items-center text-2xl shadow-lg">
+            🩺
+          </div>
+          <div>
+            <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+              Journal Clinique
+            </div>
+            <div className="font-display text-2xl font-bold leading-none">
+              Carnet de Stage
+            </div>
+          </div>
+        </div>
+
+        <p className="font-arabic text-2xl text-center text-primary my-6 leading-relaxed">
+          العلمُ صيدٌ وكتابتُه قيدٌ 📝
+        </p>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!value.includes("@")) {
+              toast.error("Veuillez entrer un email valide");
+              return;
+            }
+            setEntering(true);
+            setTimeout(() => onLogin(value.trim()), 350);
+          }}
+          className="space-y-4"
+        >
+          <label className="block">
+            <span className="text-sm font-medium text-foreground/80">
+              Votre adresse e-mail
+            </span>
+            <div className="mt-2 relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                type="email"
+                required
+                autoFocus
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                placeholder="etudiant@medecine.dz"
+                className="w-full pl-10 pr-4 py-3 rounded-xl bg-background border border-input focus:outline-none focus:ring-2 focus:ring-ring transition"
+              />
+            </div>
+          </label>
+          <button
+            type="submit"
+            className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:opacity-90 active:scale-[0.99] transition shadow-lg shadow-primary/20"
+          >
+            Entrer dans mon carnet →
+          </button>
+        </form>
+
+        <p className="text-xs text-muted-foreground text-center mt-6">
+          Vos données restent sur votre appareil. 🔒
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Sidebar ---------------- */
+
+const NAV: { id: Tab; label: string; icon: React.ComponentType<{ className?: string }>; emoji: string }[] = [
+  { id: "home", label: "Spécialités", icon: Activity, emoji: "🏥" },
+  { id: "stats", label: "Statistiques", icon: BarChart3, emoji: "📊" },
+  { id: "ai", label: "Assistant IA", icon: Bot, emoji: "🤖" },
+  { id: "notif", label: "Notifications", icon: Bell, emoji: "🔔" },
+  { id: "help", label: "Aide & Concepteur", icon: Info, emoji: "ℹ️" },
+];
+
+function SidebarContent({
+  tab,
+  setTab,
+  cases,
+  counts,
+  email,
+  onLogout,
+}: {
+  tab: Tab;
+  setTab: (t: Tab) => void;
+  cases: CaseEntry[];
+  counts: Record<string, number>;
+  email: string;
+  onLogout: () => void;
+}) {
+  const topSpecs = useMemo(
+    () =>
+      [...SPECIALTIES]
+        .map((s) => ({ ...s, n: counts[s.id] || 0 }))
+        .sort((a, b) => b.n - a.n)
+        .slice(0, 4),
+    [counts],
+  );
+
+  return (
+    <div className="h-full flex flex-col p-5">
+      <div className="flex items-center gap-3 mb-8">
+        <div className="w-11 h-11 rounded-2xl bg-primary text-primary-foreground grid place-items-center text-xl shadow-lg">
+          🩺
+        </div>
+        <div>
+          <div className="font-display text-lg font-bold leading-none">
+            Carnet de Stage
+          </div>
+          <div className="text-[11px] uppercase tracking-widest text-muted-foreground mt-1">
+            Journal Clinique
+          </div>
+        </div>
+      </div>
+
+      <nav className="space-y-1">
+        {NAV.map((n) => {
+          const active = tab === n.id;
+          return (
+            <button
+              key={n.id}
+              onClick={() => setTab(n.id)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
+                active
+                  ? "bg-primary text-primary-foreground shadow-md"
+                  : "text-foreground/80 hover:bg-secondary"
+              }`}
+            >
+              <span className="text-base">{n.emoji}</span>
+              <span>{n.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+
+      <div className="mt-8">
+        <div className="text-[11px] uppercase tracking-widest text-muted-foreground mb-3 px-1">
+          Top spécialités
+        </div>
+        <div className="space-y-3">
+          {topSpecs.map((s) => {
+            const pct = cases.length ? Math.round((s.n / cases.length) * 100) : 0;
+            return (
+              <div key={s.id} className="px-1">
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="flex items-center gap-1.5 text-foreground/80 truncate">
+                    <span>{s.emoji}</span>
+                    <span className="truncate">{s.fr}</span>
+                  </span>
+                  <span className="text-muted-foreground shrink-0">{s.n}</span>
+                </div>
+                <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${pct}%`,
+                      background: `oklch(0.6 0.15 ${s.hue})`,
+                    }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mt-auto pt-6 border-t border-border">
+        <div className="text-xs text-muted-foreground mb-2 truncate">{email}</div>
+        <button
+          onClick={onLogout}
+          className="flex items-center gap-2 text-sm text-foreground/70 hover:text-foreground transition"
+        >
+          <LogOut className="w-4 h-4" /> Se déconnecter
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Header ---------------- */
+
+function Header({
+  hospital,
+  setHospital,
+  onOpenNav,
+  total,
+}: {
+  hospital: string;
+  setHospital: (h: string) => void;
+  onOpenNav: () => void;
+  total: number;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <header className="sticky top-0 z-20 backdrop-blur-md bg-background/80 border-b border-border">
+      <div className="max-w-6xl mx-auto px-5 md:px-8 py-4 flex items-center gap-4">
+        <button
+          className="lg:hidden p-2 -ml-2 rounded-lg hover:bg-secondary"
+          onClick={onOpenNav}
+          aria-label="Menu"
+        >
+          <div className="w-5 h-0.5 bg-foreground mb-1" />
+          <div className="w-5 h-0.5 bg-foreground mb-1" />
+          <div className="w-5 h-0.5 bg-foreground" />
+        </button>
+
+        <div className="flex-1 min-w-0">
+          <h1 className="font-display text-xl md:text-2xl font-bold tracking-tight leading-none">
+            CARNET DE STAGE
+          </h1>
+          <p className="font-arabic text-primary/90 text-base md:text-lg mt-1 leading-none">
+            العلمُ صيدٌ وكتابتُه قيدٌ 📝
+          </p>
+        </div>
+
+        <div className="relative">
+          <button
+            onClick={() => setOpen((v) => !v)}
+            className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl bg-card border border-border hover:bg-secondary transition text-sm"
+          >
+            <span>🏥</span>
+            <span className="hidden sm:inline max-w-[180px] truncate">{hospital}</span>
+            <span className="sm:hidden">CHU</span>
+            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+          </button>
+          {open && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+              <div className="absolute right-0 mt-2 w-72 max-h-96 overflow-y-auto rounded-xl border border-border bg-popover shadow-2xl z-40 p-1">
+                {HOSPITALS.map((h) => (
+                  <button
+                    key={h}
+                    onClick={() => {
+                      setHospital(h);
+                      setOpen(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-secondary transition ${
+                      hospital === h ? "bg-secondary font-medium" : ""
+                    }`}
+                  >
+                    🏥 {h}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl bg-secondary/60 text-sm">
+          <span className="text-lg">📚</span>
+          <span className="font-semibold">{total}</span>
+          <span className="text-muted-foreground">cas</span>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+/* ---------------- Home Tab ---------------- */
+
+function HomeTab({
+  search,
+  setSearch,
+  specialties,
+  counts,
+  onOpen,
+}: {
+  search: string;
+  setSearch: (v: string) => void;
+  specialties: Specialty[];
+  counts: Record<string, number>;
+  onOpen: (s: Specialty) => void;
+}) {
+  return (
+    <div>
+      <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground mb-2">
+            🏥 Vos rotations hospitalières
+          </div>
+          <h2 className="font-display text-3xl md:text-4xl font-bold leading-tight">
+            Choisissez une spécialité <br className="hidden md:block" />
+            pour enregistrer un cas.
+          </h2>
+        </div>
+        <div className="relative w-full md:w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Rechercher une spécialité…"
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-card border border-border focus:outline-none focus:ring-2 focus:ring-ring text-sm"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        {specialties.map((s) => {
+          const n = counts[s.id] || 0;
+          return (
+            <button
+              key={s.id}
+              onClick={() => onOpen(s)}
+              className="group relative overflow-hidden text-left rounded-2xl border border-border bg-card p-4 hover:shadow-xl hover:-translate-y-0.5 transition-all"
+            >
+              <div
+                className="absolute -top-8 -right-8 w-24 h-24 rounded-full opacity-25 group-hover:opacity-40 transition-opacity blur-2xl"
+                style={{ background: `oklch(0.75 0.15 ${s.hue})` }}
+              />
+              <div
+                className="w-11 h-11 rounded-xl grid place-items-center text-2xl mb-3 shadow-inner"
+                style={{
+                  background: `oklch(0.94 0.06 ${s.hue})`,
+                }}
+              >
+                {s.emoji}
+              </div>
+              <div className="font-semibold text-sm leading-tight">{s.fr}</div>
+              <div className="font-arabic text-xs text-muted-foreground mt-0.5">
+                {s.ar}
+              </div>
+              <div className="mt-3 flex items-center justify-between">
+                <span className="text-[11px] text-muted-foreground">
+                  {n} cas
+                </span>
+                <span
+                  className="w-7 h-7 rounded-full grid place-items-center bg-primary text-primary-foreground text-sm opacity-0 group-hover:opacity-100 transition"
+                  aria-hidden
+                >
+                  <Plus className="w-4 h-4" />
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Stats Tab ---------------- */
+
+function StatsTab({
+  counts,
+  total,
+  cases,
+  onDelete,
+}: {
+  counts: Record<string, number>;
+  total: number;
+  cases: CaseEntry[];
+  onDelete: (id: string) => void;
+}) {
+  const ranked = useMemo(
+    () =>
+      [...SPECIALTIES]
+        .map((s) => ({ ...s, n: counts[s.id] || 0 }))
+        .sort((a, b) => b.n - a.n),
+    [counts],
+  );
+  const maxN = Math.max(1, ...ranked.map((r) => r.n));
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground mb-2">
+          📊 Vue d'ensemble
+        </div>
+        <h2 className="font-display text-3xl md:text-4xl font-bold">
+          {total} cas enregistrés dans votre carnet.
+        </h2>
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card p-6">
+        <div className="text-sm font-semibold mb-5">
+          Répartition par spécialité
+        </div>
+        <div className="space-y-3">
+          {ranked.map((s) => {
+            const pct = total ? Math.round((s.n / total) * 100) : 0;
+            const bar = total ? (s.n / maxN) * 100 : 0;
+            return (
+              <div key={s.id}>
+                <div className="flex items-center justify-between text-sm mb-1">
+                  <span className="flex items-center gap-2">
+                    <span>{s.emoji}</span>
+                    <span className="font-medium">{s.fr}</span>
+                    <span className="font-arabic text-xs text-muted-foreground">
+                      {s.ar}
+                    </span>
+                  </span>
+                  <span className="text-muted-foreground">
+                    {s.n} · {pct}%
+                  </span>
+                </div>
+                <div className="h-2.5 bg-secondary rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${bar}%`,
+                      background: `linear-gradient(90deg, oklch(0.65 0.16 ${s.hue}), oklch(0.55 0.14 ${s.hue}))`,
+                    }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {cases.length > 0 && (
+        <div className="rounded-2xl border border-border bg-card p-6">
+          <div className="text-sm font-semibold mb-4">🗂️ Derniers cas</div>
+          <div className="divide-y divide-border">
+            {cases.slice(0, 10).map((c) => {
+              const s = SPECIALTIES.find((sp) => sp.id === c.specialty);
+              return (
+                <div
+                  key={c.id}
+                  className="py-3 flex items-start gap-3"
+                >
+                  <div className="text-xl">{s?.emoji || "🩺"}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm">{c.diagnosis}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {s?.fr} · {c.hospital} ·{" "}
+                      {new Date(c.date).toLocaleDateString("fr-FR")}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => onDelete(c.id)}
+                    className="text-muted-foreground hover:text-destructive p-1"
+                    aria-label="Supprimer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- AI Tab ---------------- */
+
+function AITab() {
+  return (
+    <div className="max-w-2xl mx-auto text-center py-10">
+      <div className="w-20 h-20 mx-auto rounded-3xl bg-primary text-primary-foreground grid place-items-center text-4xl mb-6 shadow-2xl shadow-primary/30">
+        🤖
+      </div>
+      <h2 className="font-display text-3xl md:text-4xl font-bold">
+        Assistant IA Clinique
+      </h2>
+      <p className="text-muted-foreground mt-3 leading-relaxed">
+        Bientôt : une IA évaluera vos cas cliniques, vérifiera la cohérence
+        diagnostic/traitement, et vous suggérera des lectures pour progresser.
+      </p>
+
+      <div className="mt-8 grid sm:grid-cols-3 gap-3 text-left">
+        {[
+          { e: "🧠", t: "Analyse clinique", d: "Cohérence diagnostic ↔ traitement." },
+          { e: "📚", t: "Ressources", d: "Références et guidelines suggérées." },
+          { e: "✨", t: "Progression", d: "Feedback personnalisé sur vos notes." },
+        ].map((f) => (
+          <div
+            key={f.t}
+            className="rounded-2xl border border-border bg-card p-4"
+          >
+            <div className="text-2xl mb-2">{f.e}</div>
+            <div className="font-semibold text-sm">{f.t}</div>
+            <div className="text-xs text-muted-foreground mt-1">{f.d}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-8 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent text-accent-foreground text-sm font-medium">
+        <Sparkles className="w-4 h-4" /> Bientôt disponible
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Notifications Tab ---------------- */
+
+function NotifTab({
+  reminders,
+  setReminders,
+}: {
+  reminders: boolean;
+  setReminders: (v: boolean) => void;
+}) {
+  const enable = async () => {
+    if (typeof Notification === "undefined") {
+      toast.error("Notifications non supportées sur cet appareil.");
+      return;
+    }
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm === "granted") {
+        setReminders(true);
+        localStorage.setItem(LS.reminders, "1");
+        new Notification("🔔 Carnet de Stage", {
+          body: "Super ! Les rappels sont activés. N'oubliez pas de noter vos cas aujourd'hui !",
+          icon: "/favicon.ico",
+        });
+        toast.success("Rappels activés ✅");
+      } else {
+        toast.error("Permission refusée");
+      }
+    } catch {
+      toast.error("Impossible d'activer les notifications.");
+    }
+  };
+
+  const disable = () => {
+    setReminders(false);
+    localStorage.setItem(LS.reminders, "0");
+    toast("Rappels désactivés");
+  };
+
+  return (
+    <div className="max-w-2xl">
+      <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground mb-2">
+        🔔 Rappels & Notifications
+      </div>
+      <h2 className="font-display text-3xl md:text-4xl font-bold mb-6">
+        Ne perdez plus jamais un cas.
+      </h2>
+
+      <div className="rounded-2xl border border-border bg-card p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="font-semibold flex items-center gap-2">
+              <span>📅</span> Rappels quotidiens
+            </div>
+            <p className="text-sm text-muted-foreground mt-1 max-w-md">
+              Recevez une notification chaque jour pour vous rappeler
+              d'enregistrer les cas de votre garde ou de votre stage.
+            </p>
+          </div>
+          <div
+            className={`w-12 h-7 rounded-full relative transition ${
+              reminders ? "bg-primary" : "bg-secondary"
+            }`}
+          >
+            <div
+              className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow transition ${
+                reminders ? "left-[22px]" : "left-0.5"
+              }`}
+            />
+          </div>
+        </div>
+
+        <button
+          onClick={reminders ? disable : enable}
+          className={`mt-6 w-full py-3 rounded-xl font-semibold transition ${
+            reminders
+              ? "bg-secondary text-foreground hover:bg-secondary/80"
+              : "bg-primary text-primary-foreground hover:opacity-90 shadow-lg shadow-primary/20"
+          }`}
+        >
+          {reminders ? "Désactiver les rappels" : "Activer les notifications de rappel"}
+        </button>
+      </div>
+
+      <div className="mt-6 rounded-2xl border border-dashed border-border p-5 text-sm text-muted-foreground">
+        💡 <strong className="text-foreground">Astuce :</strong> installez
+        l'application sur votre téléphone via le menu de votre navigateur
+        (« Ajouter à l'écran d'accueil ») pour recevoir les rappels comme une
+        vraie app.
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Help Tab ---------------- */
+
+function HelpTab() {
+  return (
+    <div className="max-w-2xl">
+      <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground mb-2">
+        ℹ️ À propos
+      </div>
+      <h2 className="font-display text-3xl md:text-4xl font-bold mb-8">
+        Aide & Concepteur
+      </h2>
+
+      <div className="space-y-4">
+        <InfoCard emoji="👨‍⚕️" title="Conçu par">
+          [Your Name Here]
+        </InfoCard>
+        <InfoCard emoji="📬" title="Contact">
+          [Your Email/Socials Here]
+        </InfoCard>
+        <InfoCard emoji="📖" title="À propos du projet">
+          [Your Project Description Here]
+        </InfoCard>
+      </div>
+
+      <p className="font-arabic text-center text-primary/80 text-xl mt-10">
+        « العلمُ صيدٌ وكتابتُه قيدٌ »
+      </p>
+    </div>
+  );
+}
+
+function InfoCard({
+  emoji,
+  title,
+  children,
+}: {
+  emoji: string;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-5 flex items-start gap-4">
+      <div className="w-11 h-11 rounded-xl bg-secondary grid place-items-center text-2xl">
+        {emoji}
+      </div>
+      <div className="flex-1">
+        <div className="text-xs uppercase tracking-widest text-muted-foreground">
+          {title}
+        </div>
+        <div className="mt-1 text-foreground/80">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Case Modal ---------------- */
+
+function CaseModal({
+  specialty,
+  hospital,
+  onClose,
+  onSave,
+}: {
+  specialty: Specialty;
+  hospital: string;
+  onClose: () => void;
+  onSave: (c: CaseEntry) => void;
+}) {
+  const [diagnosis, setDiagnosis] = useState("");
+  const [treatment, setTreatment] = useState("");
+  const [notes, setNotes] = useState("");
+  const [photo, setPhoto] = useState<string | undefined>(undefined);
+  const [drag, setDrag] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [onClose]);
+
+  const handleFile = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Merci de choisir une image.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setPhoto(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!diagnosis.trim()) {
+      toast.error("Ajoutez un diagnostic.");
+      return;
+    }
+    onSave({
+      id: crypto.randomUUID(),
+      specialty: specialty.id,
+      diagnosis: diagnosis.trim(),
+      treatment: treatment.trim(),
+      notes: notes.trim(),
+      photo,
+      hospital,
+      date: new Date().toISOString(),
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-6">
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in"
+        onClick={onClose}
+      />
+      <div className="relative w-full md:max-w-2xl bg-card border border-border rounded-t-3xl md:rounded-3xl shadow-2xl max-h-[92vh] overflow-y-auto animate-in slide-in-from-bottom-4">
+        <div
+          className="sticky top-0 z-10 flex items-center gap-3 px-6 py-4 border-b border-border bg-card/95 backdrop-blur"
+        >
+          <div
+            className="w-11 h-11 rounded-xl grid place-items-center text-2xl"
+            style={{ background: `oklch(0.94 0.06 ${specialty.hue})` }}
+          >
+            {specialty.emoji}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-display text-lg font-bold leading-tight">
+              Nouveau cas · {specialty.fr}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              🏥 {hospital}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-secondary"
+            aria-label="Fermer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={submit} className="p-6 space-y-6">
+          {/* Diagnosis */}
+          <div>
+            <label className="text-sm font-semibold flex items-center gap-2">
+              🩺 Le Diagnostic
+            </label>
+            <input
+              value={diagnosis}
+              onChange={(e) => setDiagnosis(e.target.value)}
+              autoFocus
+              placeholder="ex: Infarctus du myocarde"
+              className="mt-2 w-full px-4 py-3 rounded-xl bg-background border border-input focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <div className="mt-2 flex flex-wrap gap-2">
+              <span className="text-xs text-muted-foreground py-1">
+                Suggestions :
+              </span>
+              {specialty.suggestions.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setDiagnosis(s)}
+                  className="px-3 py-1 rounded-full text-xs bg-secondary hover:bg-secondary/70 border border-border transition"
+                >
+                  ✨ {s}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Treatment */}
+          <div>
+            <label className="text-sm font-semibold flex items-center gap-2">
+              💊 Le Traitement
+            </label>
+            <input
+              value={treatment}
+              onChange={(e) => setTreatment(e.target.value)}
+              placeholder="ex: Aspirine 250mg, Clopidogrel, Enoxaparine…"
+              className="mt-2 w-full px-4 py-3 rounded-xl bg-background border border-input focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="text-sm font-semibold flex items-center gap-2">
+              📝 Remarques / Notes cliniques
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={4}
+              placeholder="Contexte, présentation clinique, ce que vous avez appris…"
+              className="mt-2 w-full px-4 py-3 rounded-xl bg-background border border-input focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+            />
+          </div>
+
+          {/* Photo */}
+          <div>
+            <label className="text-sm font-semibold flex items-center gap-2">
+              📸 Souvenir Photo
+            </label>
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDrag(true);
+              }}
+              onDragLeave={() => setDrag(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDrag(false);
+                const f = e.dataTransfer.files?.[0];
+                if (f) handleFile(f);
+              }}
+              onClick={() => fileRef.current?.click()}
+              className={`mt-2 cursor-pointer rounded-2xl border-2 border-dashed p-6 text-center transition ${
+                drag
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:bg-secondary/50"
+              }`}
+            >
+              {photo ? (
+                <div className="relative inline-block">
+                  <img
+                    src={photo}
+                    alt="Aperçu"
+                    className="max-h-52 rounded-xl mx-auto"
+                  />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPhoto(undefined);
+                    }}
+                    className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-destructive text-destructive-foreground grid place-items-center shadow"
+                    aria-label="Retirer la photo"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <Camera className="w-8 h-8 mx-auto text-muted-foreground" />
+                  <div className="mt-2 text-sm font-medium">
+                    Cliquez ou glissez une photo
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Radio, ECG, échographie, ou photo de garde 📷
+                  </div>
+                </>
+              )}
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleFile(f);
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-5 py-3 rounded-xl border border-border hover:bg-secondary font-medium"
+            >
+              Annuler
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-3 rounded-xl bg-primary text-primary-foreground font-semibold shadow-lg shadow-primary/20 hover:opacity-90"
+            >
+              💾 Enregistrer le cas
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
