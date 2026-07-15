@@ -158,15 +158,7 @@ function CarnetApp() {
   if (!hydrated) return null;
 
   if (!email) {
-    return (
-      <LoginScreen
-        onLogin={(e) => {
-          localStorage.setItem(LS.user, e);
-          setEmail(e);
-          toast.success("Bienvenue dans votre Carnet de Stage ✨");
-        }}
-      />
-    );
+    return <LoginScreen />;
   }
 
   const addCase = (c: CaseEntry) => {
