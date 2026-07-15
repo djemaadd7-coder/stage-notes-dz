@@ -201,8 +201,8 @@ function CarnetApp() {
             cases={cases}
             counts={counts}
             email={email}
-            onLogout={() => {
-              localStorage.removeItem(LS.user);
+            onLogout={async () => {
+              await supabase.auth.signOut();
               setEmail(null);
               setTab("home");
               setMobileNav(false);
