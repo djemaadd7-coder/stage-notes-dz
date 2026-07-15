@@ -437,10 +437,15 @@ function SidebarContent({
       </div>
 
       <div className="mt-auto pt-6 border-t border-border">
-        <div className="text-xs text-muted-foreground mb-2 truncate">{email}</div>
+        <div className="flex items-center gap-2 mb-3 px-1">
+          <div className="w-8 h-8 rounded-full bg-secondary grid place-items-center text-sm font-semibold text-foreground/80 shrink-0">
+            {email.charAt(0).toUpperCase()}
+          </div>
+          <div className="text-xs text-muted-foreground truncate">{email}</div>
+        </div>
         <button
           onClick={onLogout}
-          className="flex items-center gap-2 text-sm text-foreground/70 hover:text-foreground transition"
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground font-medium text-sm transition shadow-sm"
         >
           <LogOut className="w-4 h-4" /> Se déconnecter
         </button>
