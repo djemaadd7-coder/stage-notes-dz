@@ -10,6 +10,7 @@ import {
   ChevronDown,
   Info,
   LogOut,
+  Lock,
   Mail,
   Plus,
   Search,
@@ -18,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/")({
   component: CarnetApp,
@@ -126,10 +128,17 @@ function CarnetApp() {
 
   useEffect(() => {
     setHydrated(true);
-    setEmail(localStorage.getItem(LS.user));
     setHospital(localStorage.getItem(LS.hospital) || HOSPITALS[0]);
     setCases(loadCases());
     setReminders(localStorage.getItem(LS.reminders) === "1");
+
+    supabase.auth.getSession().then(({ data }) => {
+      setEmail(data.session?.user?.email ?? null);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setEmail(session?.user?.email ?? null);
+    });
+    return () => sub.subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -150,15 +159,7 @@ function CarnetApp() {
   if (!hydrated) return null;
 
   if (!email) {
-    return (
-      <LoginScreen
-        onLogin={(e) => {
-          localStorage.setItem(LS.user, e);
-          setEmail(e);
-          toast.success("Bienvenue dans votre Carnet de Stage ✨");
-        }}
-      />
-    );
+    return <LoginScreen />;
   }
 
   const addCase = (c: CaseEntry) => {
@@ -201,8 +202,8 @@ function CarnetApp() {
             cases={cases}
             counts={counts}
             email={email}
-            onLogout={() => {
-              localStorage.removeItem(LS.user);
+            onLogout={async () => {
+              await supabase.auth.signOut();
               setEmail(null);
               setTab("home");
               setMobileNav(false);
@@ -264,9 +265,53 @@ function CarnetApp() {
 
 /* ---------------- Login ---------------- */
 
-function LoginScreen({ onLogin }: { onLogin: (email: string) => void }) {
-  const [value, setValue] = useState("");
-  const [entering, setEntering] = useState(false);
+function LoginScreen() {
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [emailValue, setEmailValue] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailValue.includes("@")) {
+      toast.error("Veuillez entrer un email valide");
+      return;
+    }
+    if (password.length < 6) {
+      toast.error("Le mot de passe doit contenir au moins 6 caractères");
+      return;
+    }
+    setLoading(true);
+    try {
+      if (mode === "signup") {
+        const { error } = await supabase.auth.signUp({
+          email: emailValue.trim(),
+          password,
+          options: { emailRedirectTo: `${window.location.origin}/` },
+        });
+        if (error) throw error;
+        toast.success("Compte créé ✨ Vous êtes connecté");
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: emailValue.trim(),
+          password,
+        });
+        if (error) throw error;
+        toast.success("Bienvenue dans votre Carnet de Stage ✨");
+      }
+    } catch (err: any) {
+      const msg = err?.message || "";
+      if (msg.toLowerCase().includes("invalid login")) {
+        toast.error("Email ou mot de passe incorrect. Créez un compte si nouveau.");
+      } else if (msg.toLowerCase().includes("already")) {
+        toast.error("Cet email a déjà un compte. Connectez-vous.");
+      } else {
+        toast.error(msg || "Une erreur est survenue");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen relative flex items-center justify-center px-5 overflow-hidden bg-background">
@@ -277,11 +322,7 @@ function LoginScreen({ onLogin }: { onLogin: (email: string) => void }) {
             "radial-gradient(1200px 500px at 20% 10%, oklch(0.9 0.08 190 / 0.5), transparent), radial-gradient(900px 500px at 80% 90%, oklch(0.9 0.08 40 / 0.4), transparent)",
         }}
       />
-      <div
-        className={`relative w-full max-w-md rounded-3xl border border-border bg-card/90 backdrop-blur p-8 md:p-10 shadow-2xl transition ${
-          entering ? "scale-95 opacity-0" : "scale-100 opacity-100"
-        }`}
-      >
+      <div className="relative w-full max-w-md rounded-3xl border border-border bg-card/90 backdrop-blur p-8 md:p-10 shadow-2xl">
         <div className="flex flex-col items-center text-center mb-6">
           <Logo size={64} />
           <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mt-4">
@@ -295,22 +336,31 @@ function LoginScreen({ onLogin }: { onLogin: (email: string) => void }) {
           </p>
         </div>
 
+        <div className="flex gap-2 p-1 rounded-xl bg-muted mb-5">
+          <button
+            type="button"
+            onClick={() => setMode("signin")}
+            className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${
+              mode === "signin" ? "bg-background shadow" : "text-muted-foreground"
+            }`}
+          >
+            Connexion
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("signup")}
+            className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${
+              mode === "signup" ? "bg-background shadow" : "text-muted-foreground"
+            }`}
+          >
+            Créer un compte
+          </button>
+        </div>
 
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!value.includes("@")) {
-              toast.error("Veuillez entrer un email valide");
-              return;
-            }
-            setEntering(true);
-            setTimeout(() => onLogin(value.trim()), 350);
-          }}
-          className="space-y-4"
-        >
+        <form onSubmit={handleSubmit} className="space-y-4">
           <label className="block">
             <span className="text-sm font-medium text-foreground/80">
-              Votre adresse e-mail
+              Adresse e-mail
             </span>
             <div className="mt-2 relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -318,23 +368,49 @@ function LoginScreen({ onLogin }: { onLogin: (email: string) => void }) {
                 type="email"
                 required
                 autoFocus
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
+                value={emailValue}
+                onChange={(e) => setEmailValue(e.target.value)}
                 placeholder="etudiant@medecine.dz"
                 className="w-full pl-10 pr-4 py-3 rounded-xl bg-background border border-input focus:outline-none focus:ring-2 focus:ring-ring transition"
               />
             </div>
           </label>
+
+          <label className="block">
+            <span className="text-sm font-medium text-foreground/80">
+              Mot de passe
+            </span>
+            <div className="mt-2 relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                type="password"
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full pl-10 pr-4 py-3 rounded-xl bg-background border border-input focus:outline-none focus:ring-2 focus:ring-ring transition"
+              />
+            </div>
+          </label>
+
           <button
             type="submit"
-            className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:opacity-90 active:scale-[0.99] transition shadow-lg shadow-primary/20"
+            disabled={loading}
+            className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:opacity-90 active:scale-[0.99] transition shadow-lg shadow-primary/20 disabled:opacity-60"
           >
-            Entrer dans mon carnet →
+            {loading
+              ? "Chargement..."
+              : mode === "signup"
+                ? "Créer mon compte →"
+                : "Entrer dans mon carnet →"}
           </button>
         </form>
 
         <p className="text-xs text-muted-foreground text-center mt-6">
-          Vos données restent sur votre appareil. 🔒
+          {mode === "signin"
+            ? "Pas encore de compte ? Cliquez sur « Créer un compte »."
+            : "Déjà inscrit ? Cliquez sur « Connexion »."}
         </p>
       </div>
     </div>
