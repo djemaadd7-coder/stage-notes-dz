@@ -210,6 +210,24 @@ function CarnetApp() {
   }
 
   const addCase = async (c: CaseEntry) => {
+    let photoPath: string | null = null;
+    let photoUrl: string | undefined = undefined;
+    if (c.photoFile) {
+      const ext = (c.photoFile.name.split(".").pop() || "jpg").toLowerCase();
+      const path = `${userId}/${crypto.randomUUID()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("case-images")
+        .upload(path, c.photoFile, { contentType: c.photoFile.type });
+      if (upErr) {
+        toast.error("Échec du téléchargement de l'image");
+        return;
+      }
+      photoPath = path;
+      const { data: signed } = await supabase.storage
+        .from("case-images")
+        .createSignedUrl(path, 60 * 60);
+      photoUrl = signed?.signedUrl;
+    }
     const { data, error } = await supabase
       .from("cases")
       .insert({
@@ -218,23 +236,32 @@ function CarnetApp() {
         diagnosis: c.diagnosis,
         treatment: c.treatment,
         notes: c.notes,
-        image_url: c.photo ?? null,
+        image_url: photoPath,
         hospital: c.hospital,
       })
       .select("id, created_at")
       .single();
     if (error || !data) {
+      if (photoPath) await supabase.storage.from("case-images").remove([photoPath]);
       toast.error("Impossible d'enregistrer le cas");
       return;
     }
     setCases((prev) => [
-      { ...c, id: data.id, date: data.created_at ?? c.date },
+      {
+        ...c,
+        id: data.id,
+        date: data.created_at ?? c.date,
+        photoFile: undefined,
+        photoPath: photoPath ?? undefined,
+        photo: photoUrl,
+      },
       ...prev,
     ]);
     toast.success(`✅ Cas enregistré — ${c.diagnosis}`, {
       description: `${SPECIALTIES.find((s) => s.id === c.specialty)?.fr} · ${hospital}`,
     });
   };
+
 
   const deleteCase = async (id: string) => {
     const prev = cases;
