@@ -155,6 +155,16 @@ function CarnetApp() {
       if (error) {
         toast.error("Erreur lors du chargement des cas");
       } else if (rows) {
+        const paths = rows.map((r) => r.image_url).filter((p): p is string => !!p);
+        const signedMap = new Map<string, string>();
+        if (paths.length) {
+          const { data: signed } = await supabase.storage
+            .from("case-images")
+            .createSignedUrls(paths, 60 * 60);
+          signed?.forEach((s) => {
+            if (s.path && s.signedUrl) signedMap.set(s.path, s.signedUrl);
+          });
+        }
         setCases(
           rows.map((r) => ({
             id: r.id,
@@ -162,12 +172,14 @@ function CarnetApp() {
             diagnosis: r.diagnosis,
             treatment: r.treatment ?? "",
             notes: r.notes ?? "",
-            photo: r.image_url ?? undefined,
+            photoPath: r.image_url ?? undefined,
+            photo: r.image_url ? signedMap.get(r.image_url) : undefined,
             hospital: r.hospital ?? "",
             date: r.created_at ?? new Date().toISOString(),
           })),
         );
       }
+
       setLoadingCases(false);
     })();
     return () => {
