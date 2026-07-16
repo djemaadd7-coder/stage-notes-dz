@@ -265,6 +265,7 @@ function CarnetApp() {
 
   const deleteCase = async (id: string) => {
     const prev = cases;
+    const target = cases.find((c) => c.id === id);
     setCases((p) => p.filter((c) => c.id !== id));
     const { error } = await supabase.from("cases").delete().eq("id", id);
     if (error) {
@@ -272,8 +273,12 @@ function CarnetApp() {
       toast.error("Suppression impossible");
       return;
     }
+    if (target?.photoPath) {
+      await supabase.storage.from("case-images").remove([target.photoPath]);
+    }
     toast("🗑️ Cas supprimé");
   };
+
 
   const filtered = search
     ? SPECIALTIES.filter(
