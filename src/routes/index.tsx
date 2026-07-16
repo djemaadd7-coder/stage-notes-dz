@@ -88,10 +88,13 @@ type CaseEntry = {
   diagnosis: string;
   treatment: string;
   notes: string;
-  photo?: string;
+  photo?: string; // display URL (signed or object URL)
+  photoPath?: string; // storage path saved in DB
+  photoFile?: File; // pending upload
   hospital: string;
   date: string;
 };
+
 
 /* ---------------- Storage ---------------- */
 
@@ -152,6 +155,16 @@ function CarnetApp() {
       if (error) {
         toast.error("Erreur lors du chargement des cas");
       } else if (rows) {
+        const paths = rows.map((r) => r.image_url).filter((p): p is string => !!p);
+        const signedMap = new Map<string, string>();
+        if (paths.length) {
+          const { data: signed } = await supabase.storage
+            .from("case-images")
+            .createSignedUrls(paths, 60 * 60);
+          signed?.forEach((s) => {
+            if (s.path && s.signedUrl) signedMap.set(s.path, s.signedUrl);
+          });
+        }
         setCases(
           rows.map((r) => ({
             id: r.id,
@@ -159,12 +172,14 @@ function CarnetApp() {
             diagnosis: r.diagnosis,
             treatment: r.treatment ?? "",
             notes: r.notes ?? "",
-            photo: r.image_url ?? undefined,
+            photoPath: r.image_url ?? undefined,
+            photo: r.image_url ? signedMap.get(r.image_url) : undefined,
             hospital: r.hospital ?? "",
             date: r.created_at ?? new Date().toISOString(),
           })),
         );
       }
+
       setLoadingCases(false);
     })();
     return () => {
@@ -195,6 +210,24 @@ function CarnetApp() {
   }
 
   const addCase = async (c: CaseEntry) => {
+    let photoPath: string | null = null;
+    let photoUrl: string | undefined = undefined;
+    if (c.photoFile) {
+      const ext = (c.photoFile.name.split(".").pop() || "jpg").toLowerCase();
+      const path = `${userId}/${crypto.randomUUID()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("case-images")
+        .upload(path, c.photoFile, { contentType: c.photoFile.type });
+      if (upErr) {
+        toast.error("Échec du téléchargement de l'image");
+        return;
+      }
+      photoPath = path;
+      const { data: signed } = await supabase.storage
+        .from("case-images")
+        .createSignedUrl(path, 60 * 60);
+      photoUrl = signed?.signedUrl;
+    }
     const { data, error } = await supabase
       .from("cases")
       .insert({
@@ -203,17 +236,25 @@ function CarnetApp() {
         diagnosis: c.diagnosis,
         treatment: c.treatment,
         notes: c.notes,
-        image_url: c.photo ?? null,
+        image_url: photoPath,
         hospital: c.hospital,
       })
       .select("id, created_at")
       .single();
     if (error || !data) {
+      if (photoPath) await supabase.storage.from("case-images").remove([photoPath]);
       toast.error("Impossible d'enregistrer le cas");
       return;
     }
     setCases((prev) => [
-      { ...c, id: data.id, date: data.created_at ?? c.date },
+      {
+        ...c,
+        id: data.id,
+        date: data.created_at ?? c.date,
+        photoFile: undefined,
+        photoPath: photoPath ?? undefined,
+        photo: photoUrl,
+      },
       ...prev,
     ]);
     toast.success(`✅ Cas enregistré — ${c.diagnosis}`, {
@@ -221,8 +262,10 @@ function CarnetApp() {
     });
   };
 
+
   const deleteCase = async (id: string) => {
     const prev = cases;
+    const target = cases.find((c) => c.id === id);
     setCases((p) => p.filter((c) => c.id !== id));
     const { error } = await supabase.from("cases").delete().eq("id", id);
     if (error) {
@@ -230,8 +273,12 @@ function CarnetApp() {
       toast.error("Suppression impossible");
       return;
     }
+    if (target?.photoPath) {
+      await supabase.storage.from("case-images").remove([target.photoPath]);
+    }
     toast("🗑️ Cas supprimé");
   };
+
 
   const filtered = search
     ? SPECIALTIES.filter(
@@ -1084,6 +1131,8 @@ function CaseModal({
   const [treatment, setTreatment] = useState("");
   const [notes, setNotes] = useState("");
   const [photo, setPhoto] = useState<string | undefined>(undefined);
+  const [photoFile, setPhotoFile] = useState<File | undefined>(undefined);
+  const [uploading, setUploading] = useState(false);
   const [drag, setDrag] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -1097,33 +1146,48 @@ function CaseModal({
     };
   }, [onClose]);
 
+  useEffect(() => {
+    return () => {
+      if (photo && photo.startsWith("blob:")) URL.revokeObjectURL(photo);
+    };
+  }, [photo]);
+
   const handleFile = (file: File) => {
     if (!file.type.startsWith("image/")) {
       toast.error("Merci de choisir une image.");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => setPhoto(reader.result as string);
-    reader.readAsDataURL(file);
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error("Image trop volumineuse (max 8 Mo).");
+      return;
+    }
+    setPhotoFile(file);
+    setPhoto(URL.createObjectURL(file));
   };
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!diagnosis.trim()) {
       toast.error("Ajoutez un diagnostic.");
       return;
     }
-    onSave({
-      id: crypto.randomUUID(),
-      specialty: specialty.id,
-      diagnosis: diagnosis.trim(),
-      treatment: treatment.trim(),
-      notes: notes.trim(),
-      photo,
-      hospital,
-      date: new Date().toISOString(),
-    });
+    setUploading(true);
+    try {
+      await onSave({
+        id: crypto.randomUUID(),
+        specialty: specialty.id,
+        diagnosis: diagnosis.trim(),
+        treatment: treatment.trim(),
+        notes: notes.trim(),
+        photoFile,
+        hospital,
+        date: new Date().toISOString(),
+      });
+    } finally {
+      setUploading(false);
+    }
   };
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-6">
@@ -1251,6 +1315,8 @@ function CaseModal({
                     onClick={(e) => {
                       e.stopPropagation();
                       setPhoto(undefined);
+                      setPhotoFile(undefined);
+
                     }}
                     className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-destructive text-destructive-foreground grid place-items-center shadow"
                     aria-label="Retirer la photo"
@@ -1292,10 +1358,12 @@ function CaseModal({
             </button>
             <button
               type="submit"
-              className="px-6 py-3 rounded-xl bg-primary text-primary-foreground font-semibold shadow-lg shadow-primary/20 hover:opacity-90"
+              disabled={uploading}
+              className="px-6 py-3 rounded-xl bg-primary text-primary-foreground font-semibold shadow-lg shadow-primary/20 hover:opacity-90 disabled:opacity-60"
             >
-              💾 Enregistrer le cas
+              {uploading ? "Enregistrement..." : "💾 Enregistrer le cas"}
             </button>
+
           </div>
         </form>
       </div>
