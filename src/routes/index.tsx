@@ -777,12 +777,15 @@ function StatsTab({
   total,
   cases,
   onDelete,
+  loading,
 }: {
   counts: Record<string, number>;
   total: number;
   cases: CaseEntry[];
   onDelete: (id: string) => void;
+  loading?: boolean;
 }) {
+
   const ranked = useMemo(
     () =>
       [...SPECIALTIES]
