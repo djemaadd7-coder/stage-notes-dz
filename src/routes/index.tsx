@@ -1358,10 +1358,12 @@ function CaseModal({
             </button>
             <button
               type="submit"
-              className="px-6 py-3 rounded-xl bg-primary text-primary-foreground font-semibold shadow-lg shadow-primary/20 hover:opacity-90"
+              disabled={uploading}
+              className="px-6 py-3 rounded-xl bg-primary text-primary-foreground font-semibold shadow-lg shadow-primary/20 hover:opacity-90 disabled:opacity-60"
             >
-              💾 Enregistrer le cas
+              {uploading ? "Enregistrement..." : "💾 Enregistrer le cas"}
             </button>
+
           </div>
         </form>
       </div>
