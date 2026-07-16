@@ -1131,6 +1131,8 @@ function CaseModal({
   const [treatment, setTreatment] = useState("");
   const [notes, setNotes] = useState("");
   const [photo, setPhoto] = useState<string | undefined>(undefined);
+  const [photoFile, setPhotoFile] = useState<File | undefined>(undefined);
+  const [uploading, setUploading] = useState(false);
   const [drag, setDrag] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -1144,33 +1146,48 @@ function CaseModal({
     };
   }, [onClose]);
 
+  useEffect(() => {
+    return () => {
+      if (photo && photo.startsWith("blob:")) URL.revokeObjectURL(photo);
+    };
+  }, [photo]);
+
   const handleFile = (file: File) => {
     if (!file.type.startsWith("image/")) {
       toast.error("Merci de choisir une image.");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => setPhoto(reader.result as string);
-    reader.readAsDataURL(file);
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error("Image trop volumineuse (max 8 Mo).");
+      return;
+    }
+    setPhotoFile(file);
+    setPhoto(URL.createObjectURL(file));
   };
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!diagnosis.trim()) {
       toast.error("Ajoutez un diagnostic.");
       return;
     }
-    onSave({
-      id: crypto.randomUUID(),
-      specialty: specialty.id,
-      diagnosis: diagnosis.trim(),
-      treatment: treatment.trim(),
-      notes: notes.trim(),
-      photo,
-      hospital,
-      date: new Date().toISOString(),
-    });
+    setUploading(true);
+    try {
+      await onSave({
+        id: crypto.randomUUID(),
+        specialty: specialty.id,
+        diagnosis: diagnosis.trim(),
+        treatment: treatment.trim(),
+        notes: notes.trim(),
+        photoFile,
+        hospital,
+        date: new Date().toISOString(),
+      });
+    } finally {
+      setUploading(false);
+    }
   };
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-6">
