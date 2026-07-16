@@ -88,10 +88,13 @@ type CaseEntry = {
   diagnosis: string;
   treatment: string;
   notes: string;
-  photo?: string;
+  photo?: string; // display URL (signed or object URL)
+  photoPath?: string; // storage path saved in DB
+  photoFile?: File; // pending upload
   hospital: string;
   date: string;
 };
+
 
 /* ---------------- Storage ---------------- */
 
