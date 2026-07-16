@@ -96,20 +96,8 @@ type CaseEntry = {
 /* ---------------- Storage ---------------- */
 
 const LS = {
-  user: "cds:user",
-  hospital: "cds:hospital",
-  cases: "cds:cases",
   reminders: "cds:reminders",
 };
-
-function loadCases(): CaseEntry[] {
-  if (typeof window === "undefined") return [];
-  try {
-    return JSON.parse(localStorage.getItem(LS.cases) || "[]");
-  } catch {
-    return [];
-  }
-}
 
 /* ---------------- Component ---------------- */
 
@@ -117,9 +105,11 @@ type Tab = "home" | "stats" | "ai" | "notif" | "help";
 
 function CarnetApp() {
   const [hydrated, setHydrated] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
   const [hospital, setHospital] = useState<string>(HOSPITALS[0]);
   const [cases, setCases] = useState<CaseEntry[]>([]);
+  const [loadingCases, setLoadingCases] = useState(false);
   const [tab, setTab] = useState<Tab>("home");
   const [openSpecialty, setOpenSpecialty] = useState<Specialty | null>(null);
   const [reminders, setReminders] = useState(false);
@@ -128,25 +118,67 @@ function CarnetApp() {
 
   useEffect(() => {
     setHydrated(true);
-    setHospital(localStorage.getItem(LS.hospital) || HOSPITALS[0]);
-    setCases(loadCases());
     setReminders(localStorage.getItem(LS.reminders) === "1");
 
     supabase.auth.getSession().then(({ data }) => {
+      setUserId(data.session?.user?.id ?? null);
       setEmail(data.session?.user?.email ?? null);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setUserId(session?.user?.id ?? null);
       setEmail(session?.user?.email ?? null);
     });
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  // Load profile + cases when user changes
   useEffect(() => {
-    if (hydrated) localStorage.setItem(LS.cases, JSON.stringify(cases));
-  }, [cases, hydrated]);
-  useEffect(() => {
-    if (hydrated) localStorage.setItem(LS.hospital, hospital);
-  }, [hospital, hydrated]);
+    if (!userId) {
+      setCases([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoadingCases(true);
+      const [{ data: profile }, { data: rows, error }] = await Promise.all([
+        supabase.from("profiles").select("selected_chu").eq("id", userId).maybeSingle(),
+        supabase
+          .from("cases")
+          .select("id, specialty, diagnosis, treatment, notes, image_url, hospital, created_at")
+          .order("created_at", { ascending: false }),
+      ]);
+      if (cancelled) return;
+      if (profile?.selected_chu) setHospital(profile.selected_chu);
+      if (error) {
+        toast.error("Erreur lors du chargement des cas");
+      } else if (rows) {
+        setCases(
+          rows.map((r) => ({
+            id: r.id,
+            specialty: r.specialty,
+            diagnosis: r.diagnosis,
+            treatment: r.treatment ?? "",
+            notes: r.notes ?? "",
+            photo: r.image_url ?? undefined,
+            hospital: r.hospital ?? "",
+            date: r.created_at ?? new Date().toISOString(),
+          })),
+        );
+      }
+      setLoadingCases(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  // Persist hospital selection to profile
+  const changeHospital = async (h: string) => {
+    setHospital(h);
+    if (userId) {
+      await supabase.from("profiles").update({ selected_chu: h }).eq("id", userId);
+    }
+  };
 
   const counts = useMemo(() => {
     const m: Record<string, number> = {};
@@ -158,19 +190,46 @@ function CarnetApp() {
 
   if (!hydrated) return null;
 
-  if (!email) {
+  if (!userId || !email) {
     return <LoginScreen />;
   }
 
-  const addCase = (c: CaseEntry) => {
-    setCases((prev) => [c, ...prev]);
+  const addCase = async (c: CaseEntry) => {
+    const { data, error } = await supabase
+      .from("cases")
+      .insert({
+        user_id: userId,
+        specialty: c.specialty,
+        diagnosis: c.diagnosis,
+        treatment: c.treatment,
+        notes: c.notes,
+        image_url: c.photo ?? null,
+        hospital: c.hospital,
+      })
+      .select("id, created_at")
+      .single();
+    if (error || !data) {
+      toast.error("Impossible d'enregistrer le cas");
+      return;
+    }
+    setCases((prev) => [
+      { ...c, id: data.id, date: data.created_at ?? c.date },
+      ...prev,
+    ]);
     toast.success(`✅ Cas enregistré — ${c.diagnosis}`, {
       description: `${SPECIALTIES.find((s) => s.id === c.specialty)?.fr} · ${hospital}`,
     });
   };
 
-  const deleteCase = (id: string) => {
-    setCases((prev) => prev.filter((c) => c.id !== id));
+  const deleteCase = async (id: string) => {
+    const prev = cases;
+    setCases((p) => p.filter((c) => c.id !== id));
+    const { error } = await supabase.from("cases").delete().eq("id", id);
+    if (error) {
+      setCases(prev);
+      toast.error("Suppression impossible");
+      return;
+    }
     toast("🗑️ Cas supprimé");
   };
 
@@ -204,7 +263,9 @@ function CarnetApp() {
             email={email}
             onLogout={async () => {
               await supabase.auth.signOut();
+              setUserId(null);
               setEmail(null);
+              setCases([]);
               setTab("home");
               setMobileNav(false);
               setOpenSpecialty(null);
@@ -223,7 +284,7 @@ function CarnetApp() {
         <main className="flex-1 min-w-0">
           <Header
             hospital={hospital}
-            setHospital={setHospital}
+            setHospital={changeHospital}
             onOpenNav={() => setMobileNav(true)}
             total={total}
           />
@@ -238,7 +299,15 @@ function CarnetApp() {
                 onOpen={(s) => setOpenSpecialty(s)}
               />
             )}
-            {tab === "stats" && <StatsTab counts={counts} total={total} cases={cases} onDelete={deleteCase} />}
+            {tab === "stats" && (
+              <StatsTab
+                counts={counts}
+                total={total}
+                cases={cases}
+                onDelete={deleteCase}
+                loading={loadingCases}
+              />
+            )}
             {tab === "ai" && <AITab />}
             {tab === "notif" && (
               <NotifTab reminders={reminders} setReminders={setReminders} />
@@ -262,6 +331,7 @@ function CarnetApp() {
     </div>
   );
 }
+
 
 /* ---------------- Login ---------------- */
 
