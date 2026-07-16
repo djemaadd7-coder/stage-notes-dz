@@ -1315,6 +1315,8 @@ function CaseModal({
                     onClick={(e) => {
                       e.stopPropagation();
                       setPhoto(undefined);
+                      setPhotoFile(undefined);
+
                     }}
                     className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-destructive text-destructive-foreground grid place-items-center shadow"
                     aria-label="Retirer la photo"
