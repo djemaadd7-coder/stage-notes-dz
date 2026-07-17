@@ -143,15 +143,24 @@ function CarnetApp() {
     let cancelled = false;
     (async () => {
       setLoadingCases(true);
-      const [{ data: profile }, { data: rows, error }] = await Promise.all([
+      const [{ data: profile, error: profileError }, { data: rows, error }] = await Promise.all([
         supabase.from("profiles").select("selected_chu").eq("id", userId).maybeSingle(),
         supabase
           .from("cases")
           .select("id, specialty, diagnosis, treatment, notes, image_url, hospital, created_at")
+          .eq("user_id", userId)
           .order("created_at", { ascending: false }),
       ]);
       if (cancelled) return;
-      if (profile?.selected_chu) setHospital(profile.selected_chu);
+      if (profile?.selected_chu) {
+        setHospital(profile.selected_chu);
+      } else if (!profileError) {
+        await supabase.from("profiles").upsert(
+          { id: userId, email, selected_chu: HOSPITALS[0] },
+          { onConflict: "id" },
+        );
+        setHospital(HOSPITALS[0]);
+      }
       if (error) {
         toast.error("Erreur lors du chargement des cas");
       } else if (rows) {
@@ -185,13 +194,17 @@ function CarnetApp() {
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, email]);
 
   // Persist hospital selection to profile
   const changeHospital = async (h: string) => {
     setHospital(h);
     if (userId) {
-      await supabase.from("profiles").update({ selected_chu: h }).eq("id", userId);
+      const { error } = await supabase.from("profiles").upsert(
+        { id: userId, email, selected_chu: h },
+        { onConflict: "id" },
+      );
+      if (error) toast.error("Impossible d'enregistrer le CHU choisi");
     }
   };
 
@@ -209,7 +222,11 @@ function CarnetApp() {
     return <LoginScreen />;
   }
 
-  const addCase = async (c: CaseEntry) => {
+  const addCase = async (c: CaseEntry): Promise<boolean> => {
+    if (!userId) {
+      toast.error("Connectez-vous pour enregistrer un cas");
+      return false;
+    }
     let photoPath: string | null = null;
     let photoUrl: string | undefined = undefined;
     if (c.photoFile) {
@@ -220,7 +237,7 @@ function CarnetApp() {
         .upload(path, c.photoFile, { contentType: c.photoFile.type });
       if (upErr) {
         toast.error("Échec du téléchargement de l'image");
-        return;
+        return false;
       }
       photoPath = path;
       const { data: signed } = await supabase.storage
@@ -244,7 +261,7 @@ function CarnetApp() {
     if (error || !data) {
       if (photoPath) await supabase.storage.from("case-images").remove([photoPath]);
       toast.error("Impossible d'enregistrer le cas");
-      return;
+      return false;
     }
     setCases((prev) => [
       {
@@ -260,6 +277,7 @@ function CarnetApp() {
     toast.success(`✅ Cas enregistré — ${c.diagnosis}`, {
       description: `${SPECIALTIES.find((s) => s.id === c.specialty)?.fr} · ${hospital}`,
     });
+    return true;
   };
 
 
@@ -368,11 +386,10 @@ function CarnetApp() {
         <CaseModal
           specialty={openSpecialty}
           hospital={hospital}
+          existingCases={cases.filter((c) => c.specialty === openSpecialty.id)}
+          onDelete={deleteCase}
           onClose={() => setOpenSpecialty(null)}
-          onSave={(c) => {
-            addCase(c);
-            setOpenSpecialty(null);
-          }}
+          onSave={addCase}
         />
       )}
     </div>
