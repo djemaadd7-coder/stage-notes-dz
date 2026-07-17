@@ -143,15 +143,24 @@ function CarnetApp() {
     let cancelled = false;
     (async () => {
       setLoadingCases(true);
-      const [{ data: profile }, { data: rows, error }] = await Promise.all([
+      const [{ data: profile, error: profileError }, { data: rows, error }] = await Promise.all([
         supabase.from("profiles").select("selected_chu").eq("id", userId).maybeSingle(),
         supabase
           .from("cases")
           .select("id, specialty, diagnosis, treatment, notes, image_url, hospital, created_at")
+          .eq("user_id", userId)
           .order("created_at", { ascending: false }),
       ]);
       if (cancelled) return;
-      if (profile?.selected_chu) setHospital(profile.selected_chu);
+      if (profile?.selected_chu) {
+        setHospital(profile.selected_chu);
+      } else if (!profileError) {
+        await supabase.from("profiles").upsert(
+          { id: userId, email, selected_chu: HOSPITALS[0] },
+          { onConflict: "id" },
+        );
+        setHospital(HOSPITALS[0]);
+      }
       if (error) {
         toast.error("Erreur lors du chargement des cas");
       } else if (rows) {
@@ -185,13 +194,17 @@ function CarnetApp() {
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, email]);
 
   // Persist hospital selection to profile
   const changeHospital = async (h: string) => {
     setHospital(h);
     if (userId) {
-      await supabase.from("profiles").update({ selected_chu: h }).eq("id", userId);
+      const { error } = await supabase.from("profiles").upsert(
+        { id: userId, email, selected_chu: h },
+        { onConflict: "id" },
+      );
+      if (error) toast.error("Impossible d'enregistrer le CHU choisi");
     }
   };
 
@@ -209,7 +222,11 @@ function CarnetApp() {
     return <LoginScreen />;
   }
 
-  const addCase = async (c: CaseEntry) => {
+  const addCase = async (c: CaseEntry): Promise<boolean> => {
+    if (!userId) {
+      toast.error("Connectez-vous pour enregistrer un cas");
+      return false;
+    }
     let photoPath: string | null = null;
     let photoUrl: string | undefined = undefined;
     if (c.photoFile) {
@@ -220,7 +237,7 @@ function CarnetApp() {
         .upload(path, c.photoFile, { contentType: c.photoFile.type });
       if (upErr) {
         toast.error("Échec du téléchargement de l'image");
-        return;
+        return false;
       }
       photoPath = path;
       const { data: signed } = await supabase.storage
@@ -244,7 +261,7 @@ function CarnetApp() {
     if (error || !data) {
       if (photoPath) await supabase.storage.from("case-images").remove([photoPath]);
       toast.error("Impossible d'enregistrer le cas");
-      return;
+      return false;
     }
     setCases((prev) => [
       {
@@ -260,6 +277,7 @@ function CarnetApp() {
     toast.success(`✅ Cas enregistré — ${c.diagnosis}`, {
       description: `${SPECIALTIES.find((s) => s.id === c.specialty)?.fr} · ${hospital}`,
     });
+    return true;
   };
 
 
@@ -368,11 +386,10 @@ function CarnetApp() {
         <CaseModal
           specialty={openSpecialty}
           hospital={hospital}
+          existingCases={cases.filter((c) => c.specialty === openSpecialty.id)}
+          onDelete={deleteCase}
           onClose={() => setOpenSpecialty(null)}
-          onSave={(c) => {
-            addCase(c);
-            setOpenSpecialty(null);
-          }}
+          onSave={addCase}
         />
       )}
     </div>
@@ -1119,13 +1136,17 @@ function InfoCard({
 function CaseModal({
   specialty,
   hospital,
+  existingCases,
+  onDelete,
   onClose,
   onSave,
 }: {
   specialty: Specialty;
   hospital: string;
+  existingCases: CaseEntry[];
+  onDelete: (id: string) => void;
   onClose: () => void;
-  onSave: (c: CaseEntry) => void;
+  onSave: (c: CaseEntry) => Promise<boolean> | boolean;
 }) {
   const [diagnosis, setDiagnosis] = useState("");
   const [treatment, setTreatment] = useState("");
@@ -1134,7 +1155,18 @@ function CaseModal({
   const [photoFile, setPhotoFile] = useState<File | undefined>(undefined);
   const [uploading, setUploading] = useState(false);
   const [drag, setDrag] = useState(false);
+  const [adding, setAdding] = useState(existingCases.length === 0);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const resetForm = () => {
+    if (photo?.startsWith("blob:")) URL.revokeObjectURL(photo);
+    setDiagnosis("");
+    setTreatment("");
+    setNotes("");
+    setPhoto(undefined);
+    setPhotoFile(undefined);
+    if (fileRef.current) fileRef.current.value = "";
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -1173,7 +1205,7 @@ function CaseModal({
     }
     setUploading(true);
     try {
-      await onSave({
+      const saved = await onSave({
         id: crypto.randomUUID(),
         specialty: specialty.id,
         diagnosis: diagnosis.trim(),
@@ -1183,6 +1215,10 @@ function CaseModal({
         hospital,
         date: new Date().toISOString(),
       });
+      if (saved) {
+        resetForm();
+        setAdding(false);
+      }
     } finally {
       setUploading(false);
     }
@@ -1207,7 +1243,7 @@ function CaseModal({
           </div>
           <div className="flex-1 min-w-0">
             <div className="font-display text-lg font-bold leading-tight">
-              Nouveau cas · {specialty.fr}
+              {adding ? "Nouveau cas" : "Cas précédents"} · {specialty.fr}
             </div>
             <div className="text-xs text-muted-foreground">
               🏥 {hospital}
@@ -1222,7 +1258,75 @@ function CaseModal({
           </button>
         </div>
 
-        <form onSubmit={submit} className="p-6 space-y-6">
+        <div className="p-6 space-y-6">
+          {!adding && (
+            <div className="space-y-4">
+              {existingCases.length > 0 ? (
+                <div className="space-y-3">
+                  {existingCases.map((c) => (
+                    <div
+                      key={c.id}
+                      className="rounded-2xl border border-border bg-background p-4 flex items-start gap-3"
+                    >
+                      {c.photo ? (
+                        <img
+                          src={c.photo}
+                          alt={`Photo du cas ${c.diagnosis}`}
+                          className="w-16 h-16 rounded-xl object-cover border border-border shrink-0"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 rounded-xl bg-secondary grid place-items-center text-2xl shrink-0">
+                          {specialty.emoji}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-sm leading-tight">
+                          {c.diagnosis}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {c.hospital || hospital} · {new Date(c.date).toLocaleDateString("fr-FR")}
+                        </div>
+                        {c.treatment && (
+                          <div className="text-sm mt-3">
+                            <span className="font-medium">Traitement :</span> {c.treatment}
+                          </div>
+                        )}
+                        {c.notes && (
+                          <div className="text-sm text-foreground/80 mt-2 whitespace-pre-wrap">
+                            {c.notes}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onDelete(c.id)}
+                        className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition"
+                        aria-label="Supprimer ce cas"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                  Aucun cas enregistré dans cette spécialité.
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setAdding(true)}
+                className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold shadow-lg shadow-primary/20 hover:opacity-90 transition"
+              >
+                <Plus className="w-4 h-4 inline-block mr-2" /> Ajouter un nouveau cas
+              </button>
+            </div>
+          )}
+
+          {adding && (
+        <form onSubmit={submit} className="space-y-6">
           {/* Diagnosis */}
           <div>
             <label className="text-sm font-semibold flex items-center gap-2">
@@ -1351,7 +1455,14 @@ function CaseModal({
           <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-3 pt-2">
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => {
+                if (existingCases.length > 0) {
+                  resetForm();
+                  setAdding(false);
+                } else {
+                  onClose();
+                }
+              }}
               className="px-5 py-3 rounded-xl border border-border hover:bg-secondary font-medium"
             >
               Annuler
@@ -1366,6 +1477,8 @@ function CaseModal({
 
           </div>
         </form>
+          )}
+        </div>
       </div>
     </div>
   );
