@@ -1202,6 +1202,7 @@ function CaseModal({
   onDelete,
   onClose,
   onSave,
+  onUpdate,
 }: {
   specialty: Specialty;
   hospital: string;
@@ -1209,6 +1210,7 @@ function CaseModal({
   onDelete: (id: string) => void;
   onClose: () => void;
   onSave: (c: CaseEntry) => Promise<boolean> | boolean;
+  onUpdate: (id: string, c: CaseEntry) => Promise<boolean> | boolean;
 }) {
   const [diagnosis, setDiagnosis] = useState("");
   const [treatment, setTreatment] = useState("");
@@ -1218,6 +1220,7 @@ function CaseModal({
   const [uploading, setUploading] = useState(false);
   const [drag, setDrag] = useState(false);
   const [adding, setAdding] = useState(existingCases.length === 0);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const resetForm = () => {
