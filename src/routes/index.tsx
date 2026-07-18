@@ -1548,6 +1548,7 @@ function CaseModal({
               onClick={() => {
                 if (existingCases.length > 0) {
                   resetForm();
+                  setEditingId(null);
                   setAdding(false);
                 } else {
                   onClose();
