@@ -451,6 +451,7 @@ function CarnetApp() {
           onDelete={deleteCase}
           onClose={() => setOpenSpecialty(null)}
           onSave={addCase}
+          onUpdate={updateCase}
         />
       )}
     </div>
