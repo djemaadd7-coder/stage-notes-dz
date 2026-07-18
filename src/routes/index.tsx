@@ -1563,7 +1563,11 @@ function CaseModal({
               disabled={uploading}
               className="px-6 py-3 rounded-xl bg-primary text-primary-foreground font-semibold shadow-lg shadow-primary/20 hover:opacity-90 disabled:opacity-60"
             >
-              {uploading ? "Enregistrement..." : "💾 Enregistrer le cas"}
+              {uploading
+                ? "Enregistrement..."
+                : editingId
+                ? "✏️ Mettre à jour"
+                : "💾 Enregistrer le cas"}
             </button>
 
           </div>
