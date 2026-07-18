@@ -16,10 +16,11 @@ import {
   Search,
   Sparkles,
   Trash2,
+  Pencil,
   X,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabaseExternal";
 
 export const Route = createFileRoute("/")({
   component: CarnetApp,
@@ -280,6 +281,66 @@ function CarnetApp() {
     return true;
   };
 
+  const updateCase = async (id: string, c: CaseEntry): Promise<boolean> => {
+    if (!userId) return false;
+    const existing = cases.find((x) => x.id === id);
+    let photoPath: string | null = existing?.photoPath ?? null;
+    let photoUrl: string | undefined = existing?.photo;
+    // New photo uploaded → replace
+    if (c.photoFile) {
+      const ext = (c.photoFile.name.split(".").pop() || "jpg").toLowerCase();
+      const path = `${userId}/${crypto.randomUUID()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("case-images")
+        .upload(path, c.photoFile, { contentType: c.photoFile.type });
+      if (upErr) {
+        toast.error("Échec du téléchargement de l'image");
+        return false;
+      }
+      // Remove old
+      if (existing?.photoPath) {
+        await supabase.storage.from("case-images").remove([existing.photoPath]);
+      }
+      photoPath = path;
+      const { data: signed } = await supabase.storage
+        .from("case-images")
+        .createSignedUrl(path, 60 * 60);
+      photoUrl = signed?.signedUrl;
+    }
+    const { error } = await supabase
+      .from("cases")
+      .update({
+        diagnosis: c.diagnosis,
+        treatment: c.treatment,
+        notes: c.notes,
+        image_url: photoPath,
+        hospital: c.hospital,
+      })
+      .eq("id", id)
+      .eq("user_id", userId);
+    if (error) {
+      toast.error("Impossible de mettre à jour le cas");
+      return false;
+    }
+    setCases((prev) =>
+      prev.map((x) =>
+        x.id === id
+          ? {
+              ...x,
+              diagnosis: c.diagnosis,
+              treatment: c.treatment,
+              notes: c.notes,
+              hospital: c.hospital,
+              photoPath: photoPath ?? undefined,
+              photo: photoUrl,
+            }
+          : x,
+      ),
+    );
+    toast.success(`✏️ Cas mis à jour — ${c.diagnosis}`);
+    return true;
+  };
+
 
   const deleteCase = async (id: string) => {
     const prev = cases;
@@ -390,6 +451,7 @@ function CarnetApp() {
           onDelete={deleteCase}
           onClose={() => setOpenSpecialty(null)}
           onSave={addCase}
+          onUpdate={updateCase}
         />
       )}
     </div>
@@ -1140,6 +1202,7 @@ function CaseModal({
   onDelete,
   onClose,
   onSave,
+  onUpdate,
 }: {
   specialty: Specialty;
   hospital: string;
@@ -1147,6 +1210,7 @@ function CaseModal({
   onDelete: (id: string) => void;
   onClose: () => void;
   onSave: (c: CaseEntry) => Promise<boolean> | boolean;
+  onUpdate: (id: string, c: CaseEntry) => Promise<boolean> | boolean;
 }) {
   const [diagnosis, setDiagnosis] = useState("");
   const [treatment, setTreatment] = useState("");
@@ -1156,6 +1220,7 @@ function CaseModal({
   const [uploading, setUploading] = useState(false);
   const [drag, setDrag] = useState(false);
   const [adding, setAdding] = useState(existingCases.length === 0);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const resetForm = () => {
@@ -1197,6 +1262,17 @@ function CaseModal({
     setPhoto(URL.createObjectURL(file));
   };
 
+  const startEdit = (c: CaseEntry) => {
+    if (photo?.startsWith("blob:")) URL.revokeObjectURL(photo);
+    setEditingId(c.id);
+    setDiagnosis(c.diagnosis);
+    setTreatment(c.treatment || "");
+    setNotes(c.notes || "");
+    setPhoto(c.photo);
+    setPhotoFile(undefined);
+    setAdding(true);
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!diagnosis.trim()) {
@@ -1205,8 +1281,8 @@ function CaseModal({
     }
     setUploading(true);
     try {
-      const saved = await onSave({
-        id: crypto.randomUUID(),
+      const payload: CaseEntry = {
+        id: editingId ?? crypto.randomUUID(),
         specialty: specialty.id,
         diagnosis: diagnosis.trim(),
         treatment: treatment.trim(),
@@ -1214,9 +1290,13 @@ function CaseModal({
         photoFile,
         hospital,
         date: new Date().toISOString(),
-      });
+      };
+      const saved = editingId
+        ? await onUpdate(editingId, payload)
+        : await onSave(payload);
       if (saved) {
         resetForm();
+        setEditingId(null);
         setAdding(false);
       }
     } finally {
@@ -1243,7 +1323,7 @@ function CaseModal({
           </div>
           <div className="flex-1 min-w-0">
             <div className="font-display text-lg font-bold leading-tight">
-              {adding ? "Nouveau cas" : "Cas précédents"} · {specialty.fr}
+              {adding ? (editingId ? "Modifier le cas" : "Nouveau cas") : "Cas précédents"} · {specialty.fr}
             </div>
             <div className="text-xs text-muted-foreground">
               🏥 {hospital}
@@ -1298,14 +1378,24 @@ function CaseModal({
                           </div>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => onDelete(c.id)}
-                        className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition"
-                        aria-label="Supprimer ce cas"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex flex-col gap-1">
+                        <button
+                          type="button"
+                          onClick={() => startEdit(c)}
+                          className="p-2 rounded-lg text-muted-foreground hover:bg-primary/10 hover:text-primary transition"
+                          aria-label="Modifier ce cas"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDelete(c.id)}
+                          className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition"
+                          aria-label="Supprimer ce cas"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1458,6 +1548,7 @@ function CaseModal({
               onClick={() => {
                 if (existingCases.length > 0) {
                   resetForm();
+                  setEditingId(null);
                   setAdding(false);
                 } else {
                   onClose();
@@ -1472,7 +1563,11 @@ function CaseModal({
               disabled={uploading}
               className="px-6 py-3 rounded-xl bg-primary text-primary-foreground font-semibold shadow-lg shadow-primary/20 hover:opacity-90 disabled:opacity-60"
             >
-              {uploading ? "Enregistrement..." : "💾 Enregistrer le cas"}
+              {uploading
+                ? "Enregistrement..."
+                : editingId
+                ? "✏️ Mettre à jour"
+                : "💾 Enregistrer le cas"}
             </button>
 
           </div>
