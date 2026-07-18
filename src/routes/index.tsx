@@ -16,6 +16,7 @@ import {
   Search,
   Sparkles,
   Trash2,
+  Pencil,
   X,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
@@ -277,6 +278,66 @@ function CarnetApp() {
     toast.success(`✅ Cas enregistré — ${c.diagnosis}`, {
       description: `${SPECIALTIES.find((s) => s.id === c.specialty)?.fr} · ${hospital}`,
     });
+    return true;
+  };
+
+  const updateCase = async (id: string, c: CaseEntry): Promise<boolean> => {
+    if (!userId) return false;
+    const existing = cases.find((x) => x.id === id);
+    let photoPath: string | null = existing?.photoPath ?? null;
+    let photoUrl: string | undefined = existing?.photo;
+    // New photo uploaded → replace
+    if (c.photoFile) {
+      const ext = (c.photoFile.name.split(".").pop() || "jpg").toLowerCase();
+      const path = `${userId}/${crypto.randomUUID()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("case-images")
+        .upload(path, c.photoFile, { contentType: c.photoFile.type });
+      if (upErr) {
+        toast.error("Échec du téléchargement de l'image");
+        return false;
+      }
+      // Remove old
+      if (existing?.photoPath) {
+        await supabase.storage.from("case-images").remove([existing.photoPath]);
+      }
+      photoPath = path;
+      const { data: signed } = await supabase.storage
+        .from("case-images")
+        .createSignedUrl(path, 60 * 60);
+      photoUrl = signed?.signedUrl;
+    }
+    const { error } = await supabase
+      .from("cases")
+      .update({
+        diagnosis: c.diagnosis,
+        treatment: c.treatment,
+        notes: c.notes,
+        image_url: photoPath,
+        hospital: c.hospital,
+      })
+      .eq("id", id)
+      .eq("user_id", userId);
+    if (error) {
+      toast.error("Impossible de mettre à jour le cas");
+      return false;
+    }
+    setCases((prev) =>
+      prev.map((x) =>
+        x.id === id
+          ? {
+              ...x,
+              diagnosis: c.diagnosis,
+              treatment: c.treatment,
+              notes: c.notes,
+              hospital: c.hospital,
+              photoPath: photoPath ?? undefined,
+              photo: photoUrl,
+            }
+          : x,
+      ),
+    );
+    toast.success(`✏️ Cas mis à jour — ${c.diagnosis}`);
     return true;
   };
 
