@@ -1262,6 +1262,17 @@ function CaseModal({
     setPhoto(URL.createObjectURL(file));
   };
 
+  const startEdit = (c: CaseEntry) => {
+    if (photo?.startsWith("blob:")) URL.revokeObjectURL(photo);
+    setEditingId(c.id);
+    setDiagnosis(c.diagnosis);
+    setTreatment(c.treatment || "");
+    setNotes(c.notes || "");
+    setPhoto(c.photo);
+    setPhotoFile(undefined);
+    setAdding(true);
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!diagnosis.trim()) {
@@ -1270,8 +1281,8 @@ function CaseModal({
     }
     setUploading(true);
     try {
-      const saved = await onSave({
-        id: crypto.randomUUID(),
+      const payload: CaseEntry = {
+        id: editingId ?? crypto.randomUUID(),
         specialty: specialty.id,
         diagnosis: diagnosis.trim(),
         treatment: treatment.trim(),
@@ -1279,9 +1290,13 @@ function CaseModal({
         photoFile,
         hospital,
         date: new Date().toISOString(),
-      });
+      };
+      const saved = editingId
+        ? await onUpdate(editingId, payload)
+        : await onSave(payload);
       if (saved) {
         resetForm();
+        setEditingId(null);
         setAdding(false);
       }
     } finally {
