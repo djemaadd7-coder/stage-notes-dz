@@ -1378,14 +1378,24 @@ function CaseModal({
                           </div>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => onDelete(c.id)}
-                        className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition"
-                        aria-label="Supprimer ce cas"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex flex-col gap-1">
+                        <button
+                          type="button"
+                          onClick={() => startEdit(c)}
+                          className="p-2 rounded-lg text-muted-foreground hover:bg-primary/10 hover:text-primary transition"
+                          aria-label="Modifier ce cas"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDelete(c.id)}
+                          className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition"
+                          aria-label="Supprimer ce cas"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
