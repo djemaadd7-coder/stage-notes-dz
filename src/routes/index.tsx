@@ -1323,7 +1323,7 @@ function CaseModal({
           </div>
           <div className="flex-1 min-w-0">
             <div className="font-display text-lg font-bold leading-tight">
-              {adding ? "Nouveau cas" : "Cas précédents"} · {specialty.fr}
+              {adding ? (editingId ? "Modifier le cas" : "Nouveau cas") : "Cas précédents"} · {specialty.fr}
             </div>
             <div className="text-xs text-muted-foreground">
               🏥 {hospital}
