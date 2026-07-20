@@ -12,6 +12,7 @@ import {
   LogOut,
   Lock,
   Mail,
+  MapPin,
   Plus,
   Search,
   Sparkles,
@@ -21,6 +22,8 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { supabase } from "@/lib/supabaseExternal";
+import { CHU_COORDS, googleMapsUrl } from "@/lib/chuCoords";
+
 
 export const Route = createFileRoute("/")({
   component: CarnetApp,
@@ -246,19 +249,25 @@ function CarnetApp() {
         .createSignedUrl(path, 60 * 60);
       photoUrl = signed?.signedUrl;
     }
-    const { data, error } = await supabase
+    const coords = CHU_COORDS[c.hospital];
+    const basePayload = {
+      user_id: userId,
+      specialty: c.specialty,
+      diagnosis: c.diagnosis,
+      treatment: c.treatment,
+      notes: c.notes,
+      image_url: photoPath,
+      hospital: c.hospital,
+    };
+    let insertResp = await supabase
       .from("cases")
-      .insert({
-        user_id: userId,
-        specialty: c.specialty,
-        diagnosis: c.diagnosis,
-        treatment: c.treatment,
-        notes: c.notes,
-        image_url: photoPath,
-        hospital: c.hospital,
-      })
+      .insert({ ...basePayload, chu_lat: coords?.lat ?? null, chu_lng: coords?.lng ?? null } as never)
       .select("id, created_at")
       .single();
+    if (insertResp.error && /chu_lat|chu_lng|column/i.test(insertResp.error.message)) {
+      insertResp = await supabase.from("cases").insert(basePayload).select("id, created_at").single();
+    }
+    const { data, error } = insertResp;
     if (error || !data) {
       if (photoPath) await supabase.storage.from("case-images").remove([photoPath]);
       toast.error("Impossible d'enregistrer le cas");
@@ -307,18 +316,23 @@ function CarnetApp() {
         .createSignedUrl(path, 60 * 60);
       photoUrl = signed?.signedUrl;
     }
-    const { error } = await supabase
+    const coords = CHU_COORDS[c.hospital];
+    const baseUpdate = {
+      diagnosis: c.diagnosis,
+      treatment: c.treatment,
+      notes: c.notes,
+      image_url: photoPath,
+      hospital: c.hospital,
+    };
+    let upd = await supabase
       .from("cases")
-      .update({
-        diagnosis: c.diagnosis,
-        treatment: c.treatment,
-        notes: c.notes,
-        image_url: photoPath,
-        hospital: c.hospital,
-      })
+      .update({ ...baseUpdate, chu_lat: coords?.lat ?? null, chu_lng: coords?.lng ?? null } as never)
       .eq("id", id)
       .eq("user_id", userId);
-    if (error) {
+    if (upd.error && /chu_lat|chu_lng|column/i.test(upd.error.message)) {
+      upd = await supabase.from("cases").update(baseUpdate).eq("id", id).eq("user_id", userId);
+    }
+    if (upd.error) {
       toast.error("Impossible de mettre à jour le cas");
       return false;
     }
@@ -921,6 +935,18 @@ function StatsTab({
   );
   const maxN = Math.max(1, ...ranked.map((r) => r.n));
 
+  const chuRanked = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const c of cases) {
+      if (!c.hospital) continue;
+      m[c.hospital] = (m[c.hospital] || 0) + 1;
+    }
+    return Object.entries(m)
+      .map(([hospital, n]) => ({ hospital, n }))
+      .sort((a, b) => b.n - a.n);
+  }, [cases]);
+  const maxChu = Math.max(1, ...chuRanked.map((r) => r.n));
+
   return (
     <div className="space-y-8">
       <div>
@@ -932,42 +958,99 @@ function StatsTab({
         </h2>
       </div>
 
-      <div className="rounded-2xl border border-border bg-card p-6">
-        <div className="text-sm font-semibold mb-5">
-          Répartition par spécialité
-        </div>
-        <div className="space-y-3">
-          {ranked.map((s) => {
-            const pct = total ? Math.round((s.n / total) * 100) : 0;
-            const bar = total ? (s.n / maxN) * 100 : 0;
-            return (
-              <div key={s.id}>
-                <div className="flex items-center justify-between text-sm mb-1">
-                  <span className="flex items-center gap-2">
-                    <span>{s.emoji}</span>
-                    <span className="font-medium">{s.fr}</span>
-                    <span className="font-arabic text-xs text-muted-foreground">
-                      {s.ar}
+      <div className="grid lg:grid-cols-2 gap-6">
+        <div className="rounded-2xl border border-border bg-card p-6">
+          <div className="text-sm font-semibold mb-5 flex items-center gap-2">
+            🩺 Répartition par spécialité
+          </div>
+          <div className="space-y-3">
+            {ranked.map((s) => {
+              const pct = total ? Math.round((s.n / total) * 100) : 0;
+              const bar = total ? (s.n / maxN) * 100 : 0;
+              return (
+                <div key={s.id}>
+                  <div className="flex items-center justify-between text-sm mb-1">
+                    <span className="flex items-center gap-2">
+                      <span>{s.emoji}</span>
+                      <span className="font-medium">{s.fr}</span>
+                      <span className="font-arabic text-xs text-muted-foreground">
+                        {s.ar}
+                      </span>
                     </span>
-                  </span>
-                  <span className="text-muted-foreground">
-                    {s.n} · {pct}%
-                  </span>
+                    <span className="text-muted-foreground">
+                      {s.n} · {pct}%
+                    </span>
+                  </div>
+                  <div className="h-2.5 bg-secondary rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${bar}%`,
+                        background: `linear-gradient(90deg, oklch(0.65 0.16 ${s.hue}), oklch(0.55 0.14 ${s.hue}))`,
+                      }}
+                    />
+                  </div>
                 </div>
-                <div className="h-2.5 bg-secondary rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{
-                      width: `${bar}%`,
-                      background: `linear-gradient(90deg, oklch(0.65 0.16 ${s.hue}), oklch(0.55 0.14 ${s.hue}))`,
-                    }}
-                  />
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card p-6">
+          <div className="text-sm font-semibold mb-5 flex items-center gap-2">
+            🏥 Répartition par CHU
+          </div>
+          {chuRanked.length === 0 ? (
+            <div className="text-sm text-muted-foreground py-6 text-center">
+              Aucun cas encore enregistré.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {chuRanked.map((c) => {
+                const pct = total ? Math.round((c.n / total) * 100) : 0;
+                const bar = total ? (c.n / maxChu) * 100 : 0;
+                return (
+                  <div key={c.hospital}>
+                    <div className="flex items-center justify-between text-sm mb-1 gap-2">
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span>🏥</span>
+                        <span className="font-medium truncate">{c.hospital}</span>
+                        <a
+                          href={googleMapsUrl(c.hospital)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1 rounded-md text-muted-foreground hover:bg-secondary hover:text-primary transition shrink-0"
+                          aria-label={`Ouvrir ${c.hospital} sur Google Maps`}
+                          title="Voir sur Google Maps"
+                        >
+                          <MapPin className="w-3.5 h-3.5" />
+                        </a>
+                      </span>
+                      <span className="text-muted-foreground shrink-0">
+                        {c.n} · {pct}%
+                      </span>
+                    </div>
+                    <div className="h-2.5 bg-secondary rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all bg-primary"
+                        style={{ width: `${bar}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
+
+      <div className="rounded-2xl border border-border bg-card p-6">
+        <div className="text-sm font-semibold mb-4 flex items-center gap-2">
+          🗺️ Carte des CHU actifs
+        </div>
+        <ChuMap cases={cases} />
+      </div>
+
 
       {cases.length > 0 && (
         <div className="rounded-2xl border border-border bg-card p-6">
@@ -983,9 +1066,24 @@ function StatsTab({
                   <div className="text-xl">{s?.emoji || "🩺"}</div>
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-sm">{c.diagnosis}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      {s?.fr} · {c.hospital} ·{" "}
-                      {new Date(c.date).toLocaleDateString("fr-FR")}
+                    <div className="text-xs text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-1">
+                      <span>{s?.fr}</span>
+                      <span>·</span>
+                      <span>{c.hospital}</span>
+                      {c.hospital && (
+                        <a
+                          href={googleMapsUrl(c.hospital)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center p-0.5 rounded hover:text-primary transition"
+                          aria-label={`Voir ${c.hospital} sur Google Maps`}
+                          title="Voir sur Google Maps"
+                        >
+                          <MapPin className="w-3 h-3" />
+                        </a>
+                      )}
+                      <span>·</span>
+                      <span>{new Date(c.date).toLocaleDateString("fr-FR")}</span>
                     </div>
                   </div>
                   <button
@@ -1214,6 +1312,7 @@ function CaseModal({
 }) {
   const [diagnosis, setDiagnosis] = useState("");
   const [treatment, setTreatment] = useState("");
+  const [chuValue, setChuValue] = useState(hospital);
   const [notes, setNotes] = useState("");
   const [photo, setPhoto] = useState<string | undefined>(undefined);
   const [photoFile, setPhotoFile] = useState<File | undefined>(undefined);
@@ -1227,6 +1326,7 @@ function CaseModal({
     if (photo?.startsWith("blob:")) URL.revokeObjectURL(photo);
     setDiagnosis("");
     setTreatment("");
+    setChuValue(hospital);
     setNotes("");
     setPhoto(undefined);
     setPhotoFile(undefined);
@@ -1267,6 +1367,7 @@ function CaseModal({
     setEditingId(c.id);
     setDiagnosis(c.diagnosis);
     setTreatment(c.treatment || "");
+    setChuValue(c.hospital || hospital);
     setNotes(c.notes || "");
     setPhoto(c.photo);
     setPhotoFile(undefined);
@@ -1288,7 +1389,7 @@ function CaseModal({
         treatment: treatment.trim(),
         notes: notes.trim(),
         photoFile,
-        hospital,
+        hospital: chuValue,
         date: new Date().toISOString(),
       };
       const saved = editingId
@@ -1446,17 +1547,49 @@ function CaseModal({
             </div>
           </div>
 
-          {/* Treatment */}
-          <div>
-            <label className="text-sm font-semibold flex items-center gap-2">
-              💊 Le Traitement
-            </label>
-            <input
-              value={treatment}
-              onChange={(e) => setTreatment(e.target.value)}
-              placeholder="ex: Aspirine 250mg, Clopidogrel, Enoxaparine…"
-              className="mt-2 w-full px-4 py-3 rounded-xl bg-background border border-input focus:outline-none focus:ring-2 focus:ring-ring"
-            />
+          {/* Treatment + CHU */}
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-semibold flex items-center gap-2">
+                💊 Le Traitement
+              </label>
+              <input
+                value={treatment}
+                onChange={(e) => setTreatment(e.target.value)}
+                placeholder="ex: Aspirine 250mg, Clopidogrel…"
+                className="mt-2 w-full px-4 py-3 rounded-xl bg-background border border-input focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-semibold flex items-center gap-2">
+                🏥 CHU
+                {chuValue && (
+                  <a
+                    href={googleMapsUrl(chuValue)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-auto inline-flex items-center gap-1 text-xs font-normal text-muted-foreground hover:text-primary"
+                    title="Voir sur Google Maps"
+                  >
+                    <MapPin className="w-3.5 h-3.5" /> Maps
+                  </a>
+                )}
+              </label>
+              <select
+                value={chuValue}
+                onChange={(e) => setChuValue(e.target.value)}
+                className="mt-2 w-full px-4 py-3 rounded-xl bg-background border border-input focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {Object.keys(CHU_COORDS).map((h) => (
+                  <option key={h} value={h}>
+                    {h}
+                  </option>
+                ))}
+                {!CHU_COORDS[chuValue] && chuValue && (
+                  <option value={chuValue}>{chuValue}</option>
+                )}
+              </select>
+            </div>
           </div>
 
           {/* Notes */}
@@ -1578,3 +1711,119 @@ function CaseModal({
     </div>
   );
 }
+
+/* ---------------- CHU Map (Leaflet) ---------------- */
+
+declare global {
+  interface Window {
+    L?: any;
+  }
+}
+
+function ChuMap({ cases }: { cases: CaseEntry[] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<any>(null);
+  const layerRef = useRef<any>(null);
+
+  const chuAgg = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const c of cases) {
+      if (c.hospital && CHU_COORDS[c.hospital]) {
+        m[c.hospital] = (m[c.hospital] || 0) + 1;
+      }
+    }
+    return Object.entries(m).map(([hospital, n]) => ({
+      hospital,
+      n,
+      ...CHU_COORDS[hospital],
+    }));
+  }, [cases]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const start = Date.now();
+    const init = () => {
+      if (cancelled) return;
+      const L = window.L;
+      if (!L) {
+        if (Date.now() - start < 8000) {
+          setTimeout(init, 150);
+        }
+        return;
+      }
+      if (!ref.current) return;
+      if (!mapRef.current) {
+        mapRef.current = L.map(ref.current, {
+          center: [28.5, 2.5],
+          zoom: 5,
+          scrollWheelZoom: false,
+        });
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19,
+          attribution: "&copy; OpenStreetMap",
+        }).addTo(mapRef.current);
+      }
+      // refresh markers
+      if (layerRef.current) {
+        mapRef.current.removeLayer(layerRef.current);
+      }
+      const group = L.layerGroup();
+      const maxN = Math.max(1, ...chuAgg.map((x) => x.n));
+      chuAgg.forEach((c) => {
+        const radius = 8 + Math.round((c.n / maxN) * 16);
+        const marker = L.circleMarker([c.lat, c.lng], {
+          radius,
+          color: "#0f766e",
+          weight: 2,
+          fillColor: "#14b8a6",
+          fillOpacity: 0.55,
+        });
+        const link = googleMapsUrl(c.hospital);
+        marker.bindPopup(
+          `<div style="font-family:system-ui;font-size:13px;line-height:1.4">
+            <div style="font-weight:600">🏥 ${c.hospital}</div>
+            <div style="color:#64748b;margin:2px 0 6px">${c.n} cas enregistré${c.n > 1 ? "s" : ""}</div>
+            <a href="${link}" target="_blank" rel="noopener" style="color:#0f766e;font-weight:500">Ouvrir dans Google Maps →</a>
+          </div>`,
+        );
+        marker.addTo(group);
+      });
+      group.addTo(mapRef.current);
+      layerRef.current = group;
+      if (chuAgg.length > 0) {
+        const bounds = L.latLngBounds(chuAgg.map((c) => [c.lat, c.lng]));
+        mapRef.current.fitBounds(bounds.pad(0.35), { maxZoom: 7 });
+      }
+      setTimeout(() => mapRef.current?.invalidateSize(), 50);
+    };
+    init();
+    return () => {
+      cancelled = true;
+    };
+  }, [chuAgg]);
+
+  useEffect(() => {
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, []);
+
+  if (chuAgg.length === 0) {
+    return (
+      <div className="h-64 rounded-xl border border-dashed border-border grid place-items-center text-sm text-muted-foreground">
+        Aucun CHU actif pour l'instant.
+      </div>
+    );
+  }
+  return (
+    <div
+      ref={ref}
+      className="h-80 w-full rounded-xl overflow-hidden border border-border"
+      style={{ background: "#e2e8f0" }}
+    />
+  );
+}
+
