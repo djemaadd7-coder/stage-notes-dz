@@ -1676,3 +1676,119 @@ function CaseModal({
     </div>
   );
 }
+
+/* ---------------- CHU Map (Leaflet) ---------------- */
+
+declare global {
+  interface Window {
+    L?: any;
+  }
+}
+
+function ChuMap({ cases }: { cases: CaseEntry[] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<any>(null);
+  const layerRef = useRef<any>(null);
+
+  const chuAgg = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const c of cases) {
+      if (c.hospital && CHU_COORDS[c.hospital]) {
+        m[c.hospital] = (m[c.hospital] || 0) + 1;
+      }
+    }
+    return Object.entries(m).map(([hospital, n]) => ({
+      hospital,
+      n,
+      ...CHU_COORDS[hospital],
+    }));
+  }, [cases]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const start = Date.now();
+    const init = () => {
+      if (cancelled) return;
+      const L = window.L;
+      if (!L) {
+        if (Date.now() - start < 8000) {
+          setTimeout(init, 150);
+        }
+        return;
+      }
+      if (!ref.current) return;
+      if (!mapRef.current) {
+        mapRef.current = L.map(ref.current, {
+          center: [28.5, 2.5],
+          zoom: 5,
+          scrollWheelZoom: false,
+        });
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19,
+          attribution: "&copy; OpenStreetMap",
+        }).addTo(mapRef.current);
+      }
+      // refresh markers
+      if (layerRef.current) {
+        mapRef.current.removeLayer(layerRef.current);
+      }
+      const group = L.layerGroup();
+      const maxN = Math.max(1, ...chuAgg.map((x) => x.n));
+      chuAgg.forEach((c) => {
+        const radius = 8 + Math.round((c.n / maxN) * 16);
+        const marker = L.circleMarker([c.lat, c.lng], {
+          radius,
+          color: "#0f766e",
+          weight: 2,
+          fillColor: "#14b8a6",
+          fillOpacity: 0.55,
+        });
+        const link = googleMapsUrl(c.hospital);
+        marker.bindPopup(
+          `<div style="font-family:system-ui;font-size:13px;line-height:1.4">
+            <div style="font-weight:600">🏥 ${c.hospital}</div>
+            <div style="color:#64748b;margin:2px 0 6px">${c.n} cas enregistré${c.n > 1 ? "s" : ""}</div>
+            <a href="${link}" target="_blank" rel="noopener" style="color:#0f766e;font-weight:500">Ouvrir dans Google Maps →</a>
+          </div>`,
+        );
+        marker.addTo(group);
+      });
+      group.addTo(mapRef.current);
+      layerRef.current = group;
+      if (chuAgg.length > 0) {
+        const bounds = L.latLngBounds(chuAgg.map((c) => [c.lat, c.lng]));
+        mapRef.current.fitBounds(bounds.pad(0.35), { maxZoom: 7 });
+      }
+      setTimeout(() => mapRef.current?.invalidateSize(), 50);
+    };
+    init();
+    return () => {
+      cancelled = true;
+    };
+  }, [chuAgg]);
+
+  useEffect(() => {
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, []);
+
+  if (chuAgg.length === 0) {
+    return (
+      <div className="h-64 rounded-xl border border-dashed border-border grid place-items-center text-sm text-muted-foreground">
+        Aucun CHU actif pour l'instant.
+      </div>
+    );
+  }
+  return (
+    <div
+      ref={ref}
+      className="h-80 w-full rounded-xl overflow-hidden border border-border"
+      style={{ background: "#e2e8f0" }}
+    />
+  );
+}
+
