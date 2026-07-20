@@ -12,6 +12,7 @@ import {
   LogOut,
   Lock,
   Mail,
+  MapPin,
   Plus,
   Search,
   Sparkles,
@@ -21,6 +22,8 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { supabase } from "@/lib/supabaseExternal";
+import { CHU_COORDS, googleMapsUrl } from "@/lib/chuCoords";
+
 
 export const Route = createFileRoute("/")({
   component: CarnetApp,
