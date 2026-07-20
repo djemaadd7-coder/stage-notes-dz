@@ -261,7 +261,7 @@ function CarnetApp() {
     };
     let insertResp = await supabase
       .from("cases")
-      .insert({ ...basePayload, chu_lat: coords?.lat ?? null, chu_lng: coords?.lng ?? null })
+      .insert({ ...basePayload, chu_lat: coords?.lat ?? null, chu_lng: coords?.lng ?? null } as never)
       .select("id, created_at")
       .single();
     if (insertResp.error && /chu_lat|chu_lng|column/i.test(insertResp.error.message)) {
