@@ -1326,6 +1326,7 @@ function CaseModal({
     if (photo?.startsWith("blob:")) URL.revokeObjectURL(photo);
     setDiagnosis("");
     setTreatment("");
+    setChuValue(hospital);
     setNotes("");
     setPhoto(undefined);
     setPhotoFile(undefined);
