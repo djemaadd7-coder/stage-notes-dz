@@ -1547,17 +1547,49 @@ function CaseModal({
             </div>
           </div>
 
-          {/* Treatment */}
-          <div>
-            <label className="text-sm font-semibold flex items-center gap-2">
-              💊 Le Traitement
-            </label>
-            <input
-              value={treatment}
-              onChange={(e) => setTreatment(e.target.value)}
-              placeholder="ex: Aspirine 250mg, Clopidogrel, Enoxaparine…"
-              className="mt-2 w-full px-4 py-3 rounded-xl bg-background border border-input focus:outline-none focus:ring-2 focus:ring-ring"
-            />
+          {/* Treatment + CHU */}
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-semibold flex items-center gap-2">
+                💊 Le Traitement
+              </label>
+              <input
+                value={treatment}
+                onChange={(e) => setTreatment(e.target.value)}
+                placeholder="ex: Aspirine 250mg, Clopidogrel…"
+                className="mt-2 w-full px-4 py-3 rounded-xl bg-background border border-input focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-semibold flex items-center gap-2">
+                🏥 CHU
+                {chuValue && (
+                  <a
+                    href={googleMapsUrl(chuValue)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-auto inline-flex items-center gap-1 text-xs font-normal text-muted-foreground hover:text-primary"
+                    title="Voir sur Google Maps"
+                  >
+                    <MapPin className="w-3.5 h-3.5" /> Maps
+                  </a>
+                )}
+              </label>
+              <select
+                value={chuValue}
+                onChange={(e) => setChuValue(e.target.value)}
+                className="mt-2 w-full px-4 py-3 rounded-xl bg-background border border-input focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {Object.keys(CHU_COORDS).map((h) => (
+                  <option key={h} value={h}>
+                    {h}
+                  </option>
+                ))}
+                {!CHU_COORDS[chuValue] && chuValue && (
+                  <option value={chuValue}>{chuValue}</option>
+                )}
+              </select>
+            </div>
           </div>
 
           {/* Notes */}
