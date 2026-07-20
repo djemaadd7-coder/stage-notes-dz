@@ -316,18 +316,23 @@ function CarnetApp() {
         .createSignedUrl(path, 60 * 60);
       photoUrl = signed?.signedUrl;
     }
-    const { error } = await supabase
+    const coords = CHU_COORDS[c.hospital];
+    const baseUpdate = {
+      diagnosis: c.diagnosis,
+      treatment: c.treatment,
+      notes: c.notes,
+      image_url: photoPath,
+      hospital: c.hospital,
+    };
+    let upd = await supabase
       .from("cases")
-      .update({
-        diagnosis: c.diagnosis,
-        treatment: c.treatment,
-        notes: c.notes,
-        image_url: photoPath,
-        hospital: c.hospital,
-      })
+      .update({ ...baseUpdate, chu_lat: coords?.lat ?? null, chu_lng: coords?.lng ?? null } as never)
       .eq("id", id)
       .eq("user_id", userId);
-    if (error) {
+    if (upd.error && /chu_lat|chu_lng|column/i.test(upd.error.message)) {
+      upd = await supabase.from("cases").update(baseUpdate).eq("id", id).eq("user_id", userId);
+    }
+    if (upd.error) {
       toast.error("Impossible de mettre à jour le cas");
       return false;
     }
