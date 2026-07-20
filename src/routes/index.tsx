@@ -249,19 +249,25 @@ function CarnetApp() {
         .createSignedUrl(path, 60 * 60);
       photoUrl = signed?.signedUrl;
     }
-    const { data, error } = await supabase
+    const coords = CHU_COORDS[c.hospital];
+    const basePayload = {
+      user_id: userId,
+      specialty: c.specialty,
+      diagnosis: c.diagnosis,
+      treatment: c.treatment,
+      notes: c.notes,
+      image_url: photoPath,
+      hospital: c.hospital,
+    };
+    let insertResp = await supabase
       .from("cases")
-      .insert({
-        user_id: userId,
-        specialty: c.specialty,
-        diagnosis: c.diagnosis,
-        treatment: c.treatment,
-        notes: c.notes,
-        image_url: photoPath,
-        hospital: c.hospital,
-      })
+      .insert({ ...basePayload, chu_lat: coords?.lat ?? null, chu_lng: coords?.lng ?? null })
       .select("id, created_at")
       .single();
+    if (insertResp.error && /chu_lat|chu_lng|column/i.test(insertResp.error.message)) {
+      insertResp = await supabase.from("cases").insert(basePayload).select("id, created_at").single();
+    }
+    const { data, error } = insertResp;
     if (error || !data) {
       if (photoPath) await supabase.storage.from("case-images").remove([photoPath]);
       toast.error("Impossible d'enregistrer le cas");
