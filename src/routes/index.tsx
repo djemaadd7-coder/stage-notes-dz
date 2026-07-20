@@ -1312,6 +1312,7 @@ function CaseModal({
 }) {
   const [diagnosis, setDiagnosis] = useState("");
   const [treatment, setTreatment] = useState("");
+  const [chuValue, setChuValue] = useState(hospital);
   const [notes, setNotes] = useState("");
   const [photo, setPhoto] = useState<string | undefined>(undefined);
   const [photoFile, setPhotoFile] = useState<File | undefined>(undefined);
