@@ -935,6 +935,18 @@ function StatsTab({
   );
   const maxN = Math.max(1, ...ranked.map((r) => r.n));
 
+  const chuRanked = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const c of cases) {
+      if (!c.hospital) continue;
+      m[c.hospital] = (m[c.hospital] || 0) + 1;
+    }
+    return Object.entries(m)
+      .map(([hospital, n]) => ({ hospital, n }))
+      .sort((a, b) => b.n - a.n);
+  }, [cases]);
+  const maxChu = Math.max(1, ...chuRanked.map((r) => r.n));
+
   return (
     <div className="space-y-8">
       <div>
@@ -946,42 +958,99 @@ function StatsTab({
         </h2>
       </div>
 
-      <div className="rounded-2xl border border-border bg-card p-6">
-        <div className="text-sm font-semibold mb-5">
-          Répartition par spécialité
-        </div>
-        <div className="space-y-3">
-          {ranked.map((s) => {
-            const pct = total ? Math.round((s.n / total) * 100) : 0;
-            const bar = total ? (s.n / maxN) * 100 : 0;
-            return (
-              <div key={s.id}>
-                <div className="flex items-center justify-between text-sm mb-1">
-                  <span className="flex items-center gap-2">
-                    <span>{s.emoji}</span>
-                    <span className="font-medium">{s.fr}</span>
-                    <span className="font-arabic text-xs text-muted-foreground">
-                      {s.ar}
+      <div className="grid lg:grid-cols-2 gap-6">
+        <div className="rounded-2xl border border-border bg-card p-6">
+          <div className="text-sm font-semibold mb-5 flex items-center gap-2">
+            🩺 Répartition par spécialité
+          </div>
+          <div className="space-y-3">
+            {ranked.map((s) => {
+              const pct = total ? Math.round((s.n / total) * 100) : 0;
+              const bar = total ? (s.n / maxN) * 100 : 0;
+              return (
+                <div key={s.id}>
+                  <div className="flex items-center justify-between text-sm mb-1">
+                    <span className="flex items-center gap-2">
+                      <span>{s.emoji}</span>
+                      <span className="font-medium">{s.fr}</span>
+                      <span className="font-arabic text-xs text-muted-foreground">
+                        {s.ar}
+                      </span>
                     </span>
-                  </span>
-                  <span className="text-muted-foreground">
-                    {s.n} · {pct}%
-                  </span>
+                    <span className="text-muted-foreground">
+                      {s.n} · {pct}%
+                    </span>
+                  </div>
+                  <div className="h-2.5 bg-secondary rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${bar}%`,
+                        background: `linear-gradient(90deg, oklch(0.65 0.16 ${s.hue}), oklch(0.55 0.14 ${s.hue}))`,
+                      }}
+                    />
+                  </div>
                 </div>
-                <div className="h-2.5 bg-secondary rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{
-                      width: `${bar}%`,
-                      background: `linear-gradient(90deg, oklch(0.65 0.16 ${s.hue}), oklch(0.55 0.14 ${s.hue}))`,
-                    }}
-                  />
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card p-6">
+          <div className="text-sm font-semibold mb-5 flex items-center gap-2">
+            🏥 Répartition par CHU
+          </div>
+          {chuRanked.length === 0 ? (
+            <div className="text-sm text-muted-foreground py-6 text-center">
+              Aucun cas encore enregistré.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {chuRanked.map((c) => {
+                const pct = total ? Math.round((c.n / total) * 100) : 0;
+                const bar = total ? (c.n / maxChu) * 100 : 0;
+                return (
+                  <div key={c.hospital}>
+                    <div className="flex items-center justify-between text-sm mb-1 gap-2">
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span>🏥</span>
+                        <span className="font-medium truncate">{c.hospital}</span>
+                        <a
+                          href={googleMapsUrl(c.hospital)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1 rounded-md text-muted-foreground hover:bg-secondary hover:text-primary transition shrink-0"
+                          aria-label={`Ouvrir ${c.hospital} sur Google Maps`}
+                          title="Voir sur Google Maps"
+                        >
+                          <MapPin className="w-3.5 h-3.5" />
+                        </a>
+                      </span>
+                      <span className="text-muted-foreground shrink-0">
+                        {c.n} · {pct}%
+                      </span>
+                    </div>
+                    <div className="h-2.5 bg-secondary rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all bg-primary"
+                        style={{ width: `${bar}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
+
+      <div className="rounded-2xl border border-border bg-card p-6">
+        <div className="text-sm font-semibold mb-4 flex items-center gap-2">
+          🗺️ Carte des CHU actifs
+        </div>
+        <ChuMap cases={cases} />
+      </div>
+
 
       {cases.length > 0 && (
         <div className="rounded-2xl border border-border bg-card p-6">
