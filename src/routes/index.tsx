@@ -1066,9 +1066,24 @@ function StatsTab({
                   <div className="text-xl">{s?.emoji || "🩺"}</div>
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-sm">{c.diagnosis}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      {s?.fr} · {c.hospital} ·{" "}
-                      {new Date(c.date).toLocaleDateString("fr-FR")}
+                    <div className="text-xs text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-1">
+                      <span>{s?.fr}</span>
+                      <span>·</span>
+                      <span>{c.hospital}</span>
+                      {c.hospital && (
+                        <a
+                          href={googleMapsUrl(c.hospital)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center p-0.5 rounded hover:text-primary transition"
+                          aria-label={`Voir ${c.hospital} sur Google Maps`}
+                          title="Voir sur Google Maps"
+                        >
+                          <MapPin className="w-3 h-3" />
+                        </a>
+                      )}
+                      <span>·</span>
+                      <span>{new Date(c.date).toLocaleDateString("fr-FR")}</span>
                     </div>
                   </div>
                   <button
