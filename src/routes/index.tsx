@@ -1367,6 +1367,7 @@ function CaseModal({
     setEditingId(c.id);
     setDiagnosis(c.diagnosis);
     setTreatment(c.treatment || "");
+    setChuValue(c.hospital || hospital);
     setNotes(c.notes || "");
     setPhoto(c.photo);
     setPhotoFile(undefined);
@@ -1388,7 +1389,7 @@ function CaseModal({
         treatment: treatment.trim(),
         notes: notes.trim(),
         photoFile,
-        hospital,
+        hospital: chuValue,
         date: new Date().toISOString(),
       };
       const saved = editingId
