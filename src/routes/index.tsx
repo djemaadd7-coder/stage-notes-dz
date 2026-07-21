@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { supabase } from "@/lib/supabaseExternal";
-import { CHU_COORDS, googleMapsUrl } from "@/lib/chuCoords";
+import { CHU_COORDS, CHU_DATA, googleMapsUrl, googleMapsUrlFromCoords } from "@/lib/chuCoords";
 
 
 export const Route = createFileRoute("/")({
@@ -31,26 +31,7 @@ export const Route = createFileRoute("/")({
 
 /* ---------------- Data ---------------- */
 
-const HOSPITALS = [
-  "CHU Mustapha Pacha",
-  "CHU Bab El Oued",
-  "CHU Beni Messous",
-  "CHU Douera",
-  "CHU Blida",
-  "CHU Oran",
-  "CHU Constantine",
-  "CHU Annaba",
-  "CHU Sétif",
-  "CHU Batna",
-  "CHU Tizi Ouzou",
-  "CHU Tlemcen",
-  "CHU Sidi Bel Abbès",
-  "CHU Béjaïa",
-  "CHU Mostaganem",
-  "CHU Biskra",
-  "CHU Ouargla",
-  "CHU Béchar",
-];
+const HOSPITALS = CHU_DATA.map((c) => c.name);
 
 type Specialty = {
   id: string;
@@ -797,19 +778,29 @@ function Header({
             {open && (
               <>
                 <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-                <div className="absolute right-0 mt-2 w-72 max-h-96 overflow-y-auto rounded-xl border border-border bg-popover shadow-2xl z-40 p-1">
-                  {HOSPITALS.map((h) => (
+                <div className="absolute right-0 mt-2 w-80 max-h-96 overflow-y-auto rounded-xl border border-border bg-popover shadow-2xl z-40 p-1">
+                  <div className="px-3 py-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
+                    Explorer sur Google Maps
+                  </div>
+                  {CHU_DATA.map((h) => (
                     <button
-                      key={h}
+                      key={h.id}
                       onClick={() => {
-                        setHospital(h);
+                        setHospital(h.name);
                         setOpen(false);
+                        window.open(
+                          googleMapsUrlFromCoords(h.lat, h.lng),
+                          "_blank",
+                          "noopener,noreferrer",
+                        );
                       }}
-                      className={`w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-secondary transition ${
-                        hospital === h ? "bg-secondary font-medium" : ""
+                      className={`w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-secondary transition flex items-center gap-2 ${
+                        hospital === h.name ? "bg-secondary font-medium" : ""
                       }`}
                     >
-                      🏥 {h}
+                      <span>🏥</span>
+                      <span className="flex-1 truncate">{h.name}</span>
+                      <MapPin className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                     </button>
                   ))}
                 </div>
