@@ -1,32 +1,37 @@
-// Approximate lat/lng coordinates for Algerian CHUs used in the app.
-// Frontend-only mapping — kept in sync with the HOSPITALS list.
+// Top 10 University/Public Hospitals in Algiers used across the app.
+// Kept in sync with the header dropdown and the internal case form.
 export type ChuCoord = { lat: number; lng: number };
 
-export const CHU_COORDS: Record<string, ChuCoord> = {
-  "CHU Mustapha Pacha": { lat: 36.7538, lng: 3.0588 },
-  "CHU Bab El Oued": { lat: 36.7925, lng: 3.0503 },
-  "CHU Beni Messous": { lat: 36.7692, lng: 2.9903 },
-  "CHU Douera": { lat: 36.6683, lng: 2.9414 },
-  "CHU Blida": { lat: 36.4700, lng: 2.8277 },
-  "CHU Oran": { lat: 35.7028, lng: -0.6414 },
-  "CHU Constantine": { lat: 36.3650, lng: 6.6147 },
-  "CHU Annaba": { lat: 36.9000, lng: 7.7667 },
-  "CHU Sétif": { lat: 36.1898, lng: 5.4108 },
-  "CHU Batna": { lat: 35.5559, lng: 6.1741 },
-  "CHU Tizi Ouzou": { lat: 36.7169, lng: 4.0497 },
-  "CHU Tlemcen": { lat: 34.8828, lng: -1.3169 },
-  "CHU Sidi Bel Abbès": { lat: 35.1892, lng: -0.6306 },
-  "CHU Béjaïa": { lat: 36.7525, lng: 5.0844 },
-  "CHU Mostaganem": { lat: 35.9314, lng: 0.0894 },
-  "CHU Biskra": { lat: 34.8500, lng: 5.7333 },
-  "CHU Ouargla": { lat: 31.9539, lng: 5.3378 },
-  "CHU Béchar": { lat: 31.6238, lng: -2.2166 },
+export type ChuEntry = {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
 };
+
+export const CHU_DATA: ChuEntry[] = [
+  { id: "mustapha", name: "CHU Mustapha Pacha", lat: 36.7618, lng: 3.0538 },
+  { id: "bab_el_oued", name: "CHU Bab El Oued (Mohamed Lamine Debaghine)", lat: 36.7885, lng: 3.0452 },
+  { id: "beni_messous", name: "CHU Beni Messous (Issad Hassani)", lat: 36.7622, lng: 2.9839 },
+  { id: "douera", name: "CHU Douera", lat: 36.6714, lng: 2.9465 },
+  { id: "kouba", name: "CHU Kouba (Bachir Mentouri)", lat: 36.7265, lng: 3.0822 },
+  { id: "hussein_dey", name: "CHU Hussein Dey (Parnet)", lat: 36.7412, lng: 3.0935 },
+  { id: "birtraria", name: "CHU El Biar (Birtraria)", lat: 36.7725, lng: 3.0238 },
+  { id: "zmirli", name: "EPH Saliha Ouatiki (Zmirli - El Harrach)", lat: 36.7118, lng: 3.1364 },
+  { id: "bologhine", name: "EPH Bologhine (Ibn Ziri)", lat: 36.8042, lng: 3.0415 },
+  { id: "rouiba", name: "EPH Rouïba", lat: 36.7358, lng: 3.2842 },
+];
+
+export const CHU_COORDS: Record<string, ChuCoord> = Object.fromEntries(
+  CHU_DATA.map((c) => [c.name, { lat: c.lat, lng: c.lng }]),
+);
+
+export function googleMapsUrlFromCoords(lat: number, lng: number): string {
+  return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+}
 
 export function googleMapsUrl(hospital: string): string {
   const c = CHU_COORDS[hospital];
-  if (c) {
-    return `https://www.google.com/maps/search/?api=1&query=${c.lat},${c.lng}`;
-  }
+  if (c) return googleMapsUrlFromCoords(c.lat, c.lng);
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(hospital)}`;
 }
