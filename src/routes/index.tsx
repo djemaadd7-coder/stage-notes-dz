@@ -31,26 +31,7 @@ export const Route = createFileRoute("/")({
 
 /* ---------------- Data ---------------- */
 
-const HOSPITALS = [
-  "CHU Mustapha Pacha",
-  "CHU Bab El Oued",
-  "CHU Beni Messous",
-  "CHU Douera",
-  "CHU Blida",
-  "CHU Oran",
-  "CHU Constantine",
-  "CHU Annaba",
-  "CHU Sétif",
-  "CHU Batna",
-  "CHU Tizi Ouzou",
-  "CHU Tlemcen",
-  "CHU Sidi Bel Abbès",
-  "CHU Béjaïa",
-  "CHU Mostaganem",
-  "CHU Biskra",
-  "CHU Ouargla",
-  "CHU Béchar",
-];
+const HOSPITALS = CHU_DATA.map((c) => c.name);
 
 type Specialty = {
   id: string;
