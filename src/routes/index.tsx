@@ -240,12 +240,18 @@ function CarnetApp() {
       image_url: photoPath,
       hospital: c.hospital,
     };
+    const extended = {
+      ...basePayload,
+      chu: c.hospital,
+      chu_lat: coords?.lat ?? null,
+      chu_lng: coords?.lng ?? null,
+    };
     let insertResp = await supabase
       .from("cases")
-      .insert({ ...basePayload, chu_lat: coords?.lat ?? null, chu_lng: coords?.lng ?? null } as never)
+      .insert(extended as never)
       .select("id, created_at")
       .single();
-    if (insertResp.error && /chu_lat|chu_lng|column/i.test(insertResp.error.message)) {
+    if (insertResp.error && /chu|chu_lat|chu_lng|column/i.test(insertResp.error.message)) {
       insertResp = await supabase.from("cases").insert(basePayload).select("id, created_at").single();
     }
     const { data, error } = insertResp;
