@@ -311,12 +311,18 @@ function CarnetApp() {
       image_url: photoPath,
       hospital: c.hospital,
     };
+    const extendedUpdate = {
+      ...baseUpdate,
+      chu: c.hospital,
+      chu_lat: coords?.lat ?? null,
+      chu_lng: coords?.lng ?? null,
+    };
     let upd = await supabase
       .from("cases")
-      .update({ ...baseUpdate, chu_lat: coords?.lat ?? null, chu_lng: coords?.lng ?? null } as never)
+      .update(extendedUpdate as never)
       .eq("id", id)
       .eq("user_id", userId);
-    if (upd.error && /chu_lat|chu_lng|column/i.test(upd.error.message)) {
+    if (upd.error && /chu|chu_lat|chu_lng|column/i.test(upd.error.message)) {
       upd = await supabase.from("cases").update(baseUpdate).eq("id", id).eq("user_id", userId);
     }
     if (upd.error) {
