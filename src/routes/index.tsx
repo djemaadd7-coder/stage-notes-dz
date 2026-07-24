@@ -320,18 +320,26 @@ function CarnetApp() {
       image_url: photoPath,
       hospital: c.hospital,
     };
-    const extendedUpdate = {
+    const withChuUpdate = {
       ...baseUpdate,
       chu: c.hospital,
+    };
+    const extendedUpdate = {
+      ...withChuUpdate,
       chu_lat: coords?.lat ?? null,
       chu_lng: coords?.lng ?? null,
     };
+
+    // Three-level fallback: full schema → chu-only → legacy schema.
     let upd = await supabase
       .from("cases")
       .update(extendedUpdate as never)
       .eq("id", id)
       .eq("user_id", userId);
-    if (upd.error && /chu|chu_lat|chu_lng|column/i.test(upd.error.message)) {
+    if (upd.error && /chu_lat|chu_lng|column/i.test(upd.error.message)) {
+      upd = await supabase.from("cases").update(withChuUpdate as never).eq("id", id).eq("user_id", userId);
+    }
+    if (upd.error && /chu|column/i.test(upd.error.message)) {
       upd = await supabase.from("cases").update(baseUpdate).eq("id", id).eq("user_id", userId);
     }
     if (upd.error) {
