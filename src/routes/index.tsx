@@ -1018,16 +1018,15 @@ function StatsTab({
                       <span className="flex items-center gap-2 min-w-0">
                         <span>🏥</span>
                         <span className="font-medium truncate">{c.hospital}</span>
-                        <a
-                          href={googleMapsUrl(c.hospital)}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => openGoogleMaps(c.hospital)}
                           className="p-1 rounded-md text-muted-foreground hover:bg-secondary hover:text-primary transition shrink-0"
                           aria-label={`Ouvrir ${c.hospital} sur Google Maps`}
                           title="Voir sur Google Maps"
                         >
                           <MapPin className="w-3.5 h-3.5" />
-                        </a>
+                        </button>
                       </span>
                       <span className="text-muted-foreground shrink-0">
                         {c.n} · {pct}%
