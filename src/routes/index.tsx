@@ -240,18 +240,27 @@ function CarnetApp() {
       image_url: photoPath,
       hospital: c.hospital,
     };
-    const extended = {
+    const withChu = {
       ...basePayload,
       chu: c.hospital,
+    };
+    const extended = {
+      ...withChu,
       chu_lat: coords?.lat ?? null,
       chu_lng: coords?.lng ?? null,
     };
+
+    // Try the richest schema first, then fall back gracefully if the DB
+    // columns do not exist yet (older migrations / partial schema).
     let insertResp = await supabase
       .from("cases")
       .insert(extended as never)
       .select("id, created_at")
       .single();
-    if (insertResp.error && /chu|chu_lat|chu_lng|column/i.test(insertResp.error.message)) {
+    if (insertResp.error && /chu_lat|chu_lng|column/i.test(insertResp.error.message)) {
+      insertResp = await supabase.from("cases").insert(withChu as never).select("id, created_at").single();
+    }
+    if (insertResp.error && /chu|column/i.test(insertResp.error.message)) {
       insertResp = await supabase.from("cases").insert(basePayload).select("id, created_at").single();
     }
     const { data, error } = insertResp;
@@ -311,18 +320,26 @@ function CarnetApp() {
       image_url: photoPath,
       hospital: c.hospital,
     };
-    const extendedUpdate = {
+    const withChuUpdate = {
       ...baseUpdate,
       chu: c.hospital,
+    };
+    const extendedUpdate = {
+      ...withChuUpdate,
       chu_lat: coords?.lat ?? null,
       chu_lng: coords?.lng ?? null,
     };
+
+    // Three-level fallback: full schema → chu-only → legacy schema.
     let upd = await supabase
       .from("cases")
       .update(extendedUpdate as never)
       .eq("id", id)
       .eq("user_id", userId);
-    if (upd.error && /chu|chu_lat|chu_lng|column/i.test(upd.error.message)) {
+    if (upd.error && /chu_lat|chu_lng|column/i.test(upd.error.message)) {
+      upd = await supabase.from("cases").update(withChuUpdate as never).eq("id", id).eq("user_id", userId);
+    }
+    if (upd.error && /chu|column/i.test(upd.error.message)) {
       upd = await supabase.from("cases").update(baseUpdate).eq("id", id).eq("user_id", userId);
     }
     if (upd.error) {
