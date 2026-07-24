@@ -1073,16 +1073,15 @@ function StatsTab({
                       <span>·</span>
                       <span>{c.hospital}</span>
                       {c.hospital && (
-                        <a
-                          href={googleMapsUrl(c.hospital)}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => openGoogleMaps(c.hospital)}
                           className="inline-flex items-center p-0.5 rounded hover:text-primary transition"
                           aria-label={`Voir ${c.hospital} sur Google Maps`}
                           title="Voir sur Google Maps"
                         >
                           <MapPin className="w-3 h-3" />
-                        </a>
+                        </button>
                       )}
                       <span>·</span>
                       <span>{new Date(c.date).toLocaleDateString("fr-FR")}</span>
