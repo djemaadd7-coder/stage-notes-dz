@@ -1779,14 +1779,16 @@ function ChuMap({ cases }: { cases: CaseEntry[] }) {
           fillColor: "#14b8a6",
           fillOpacity: 0.55,
         });
-        const link = googleMapsUrl(c.hospital);
-        marker.bindPopup(
-          `<div style="font-family:system-ui;font-size:13px;line-height:1.4">
-            <div style="font-weight:600">🏥 ${c.hospital}</div>
-            <div style="color:#64748b;margin:2px 0 6px">${c.n} cas enregistré${c.n > 1 ? "s" : ""}</div>
-            <a href="${link}" target="_blank" rel="noopener" style="color:#0f766e;font-weight:500">Ouvrir dans Google Maps →</a>
-          </div>`,
+        marker.bindTooltip(
+          `<div style="font-family:system-ui;font-size:12px"><strong>🏥 ${c.hospital}</strong><br/>${c.n} cas enregistré${c.n > 1 ? "s" : ""}<br/><span style="color:#0f766e">Cliquer pour ouvrir dans Google Maps →</span></div>`,
         );
+        marker.on("click", () => {
+          window.open(
+            googleMapsUrlFromCoords(c.lat, c.lng),
+            "_blank",
+            "noopener,noreferrer",
+          );
+        });
         marker.addTo(group);
       });
       group.addTo(mapRef.current);
