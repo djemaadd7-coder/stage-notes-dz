@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { supabase } from "@/lib/supabaseExternal";
-import { CHU_COORDS, CHU_DATA, googleMapsUrl, googleMapsUrlFromCoords } from "@/lib/chuCoords";
+import { CHU_COORDS, CHU_DATA, googleMapsUrl, googleMapsUrlFromCoords, openGoogleMaps } from "@/lib/chuCoords";
 
 
 export const Route = createFileRoute("/")({
@@ -240,12 +240,18 @@ function CarnetApp() {
       image_url: photoPath,
       hospital: c.hospital,
     };
+    const extended = {
+      ...basePayload,
+      chu: c.hospital,
+      chu_lat: coords?.lat ?? null,
+      chu_lng: coords?.lng ?? null,
+    };
     let insertResp = await supabase
       .from("cases")
-      .insert({ ...basePayload, chu_lat: coords?.lat ?? null, chu_lng: coords?.lng ?? null } as never)
+      .insert(extended as never)
       .select("id, created_at")
       .single();
-    if (insertResp.error && /chu_lat|chu_lng|column/i.test(insertResp.error.message)) {
+    if (insertResp.error && /chu|chu_lat|chu_lng|column/i.test(insertResp.error.message)) {
       insertResp = await supabase.from("cases").insert(basePayload).select("id, created_at").single();
     }
     const { data, error } = insertResp;
@@ -305,12 +311,18 @@ function CarnetApp() {
       image_url: photoPath,
       hospital: c.hospital,
     };
+    const extendedUpdate = {
+      ...baseUpdate,
+      chu: c.hospital,
+      chu_lat: coords?.lat ?? null,
+      chu_lng: coords?.lng ?? null,
+    };
     let upd = await supabase
       .from("cases")
-      .update({ ...baseUpdate, chu_lat: coords?.lat ?? null, chu_lng: coords?.lng ?? null } as never)
+      .update(extendedUpdate as never)
       .eq("id", id)
       .eq("user_id", userId);
-    if (upd.error && /chu_lat|chu_lng|column/i.test(upd.error.message)) {
+    if (upd.error && /chu|chu_lat|chu_lng|column/i.test(upd.error.message)) {
       upd = await supabase.from("cases").update(baseUpdate).eq("id", id).eq("user_id", userId);
     }
     if (upd.error) {
@@ -1006,16 +1018,15 @@ function StatsTab({
                       <span className="flex items-center gap-2 min-w-0">
                         <span>🏥</span>
                         <span className="font-medium truncate">{c.hospital}</span>
-                        <a
-                          href={googleMapsUrl(c.hospital)}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => openGoogleMaps(c.hospital)}
                           className="p-1 rounded-md text-muted-foreground hover:bg-secondary hover:text-primary transition shrink-0"
                           aria-label={`Ouvrir ${c.hospital} sur Google Maps`}
                           title="Voir sur Google Maps"
                         >
                           <MapPin className="w-3.5 h-3.5" />
-                        </a>
+                        </button>
                       </span>
                       <span className="text-muted-foreground shrink-0">
                         {c.n} · {pct}%
@@ -1062,16 +1073,15 @@ function StatsTab({
                       <span>·</span>
                       <span>{c.hospital}</span>
                       {c.hospital && (
-                        <a
-                          href={googleMapsUrl(c.hospital)}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => openGoogleMaps(c.hospital)}
                           className="inline-flex items-center p-0.5 rounded hover:text-primary transition"
                           aria-label={`Voir ${c.hospital} sur Google Maps`}
                           title="Voir sur Google Maps"
                         >
                           <MapPin className="w-3 h-3" />
-                        </a>
+                        </button>
                       )}
                       <span>·</span>
                       <span>{new Date(c.date).toLocaleDateString("fr-FR")}</span>
@@ -1769,14 +1779,16 @@ function ChuMap({ cases }: { cases: CaseEntry[] }) {
           fillColor: "#14b8a6",
           fillOpacity: 0.55,
         });
-        const link = googleMapsUrl(c.hospital);
-        marker.bindPopup(
-          `<div style="font-family:system-ui;font-size:13px;line-height:1.4">
-            <div style="font-weight:600">🏥 ${c.hospital}</div>
-            <div style="color:#64748b;margin:2px 0 6px">${c.n} cas enregistré${c.n > 1 ? "s" : ""}</div>
-            <a href="${link}" target="_blank" rel="noopener" style="color:#0f766e;font-weight:500">Ouvrir dans Google Maps →</a>
-          </div>`,
+        marker.bindTooltip(
+          `<div style="font-family:system-ui;font-size:12px"><strong>🏥 ${c.hospital}</strong><br/>${c.n} cas enregistré${c.n > 1 ? "s" : ""}<br/><span style="color:#0f766e">Cliquer pour ouvrir dans Google Maps →</span></div>`,
         );
+        marker.on("click", () => {
+          window.open(
+            googleMapsUrlFromCoords(c.lat, c.lng),
+            "_blank",
+            "noopener,noreferrer",
+          );
+        });
         marker.addTo(group);
       });
       group.addTo(mapRef.current);

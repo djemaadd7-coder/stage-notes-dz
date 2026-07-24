@@ -35,3 +35,16 @@ export function googleMapsUrl(hospital: string): string {
   if (c) return googleMapsUrlFromCoords(c.lat, c.lng);
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(hospital)}`;
 }
+
+// Opens Google Maps in a real new tab. Using window.open avoids the
+// ERR_BLOCKED_BY_RESPONSE that <a target="_blank"> hits inside sandboxed
+// preview iframes (Google sets X-Frame-Options: DENY on maps URLs).
+export function openGoogleMaps(hospitalOrUrl: string, lat?: number, lng?: number): void {
+  const url =
+    typeof lat === "number" && typeof lng === "number"
+      ? googleMapsUrlFromCoords(lat, lng)
+      : googleMapsUrl(hospitalOrUrl);
+  if (typeof window !== "undefined") {
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+}
