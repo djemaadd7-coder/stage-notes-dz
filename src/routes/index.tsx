@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { supabase } from "@/lib/supabaseExternal";
-import { CHU_COORDS, CHU_DATA, googleMapsUrl, googleMapsUrlFromCoords } from "@/lib/chuCoords";
+import { CHU_COORDS, CHU_DATA, googleMapsUrl, googleMapsUrlFromCoords, openGoogleMaps } from "@/lib/chuCoords";
 
 
 export const Route = createFileRoute("/")({
